@@ -1,14 +1,12 @@
 """Data structures describing the network at one snapshot.
 
-Positions are in the local ENU metric frame (meters, z up) shared with the
-geometry stage, so cells and UEs can be dropped straight into the Sionna scene.
+Positions are in the local ENU metric frame (metres, z up) shared with the
+geometry stage, so cells and UEs drop straight into the Sionna scene.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
-from dtrapp.config import AntennaConfig
+from dataclasses import dataclass
 
 Vec3 = tuple[float, float, float]
 
@@ -21,15 +19,11 @@ class Cell:
     """
 
     cell_id: str
-    site_id: int
-    sector: int
-    position: Vec3  # (x, y, z) meters, z = antenna height
-    azimuth_deg: float  # bearing of the sector boresight (0 = +x / East)
-    downtilt_deg: float
+    position: Vec3  # (x, y, z) metres, z = antenna height
+    azimuth_deg: float  # sector boresight bearing (0 = +x / East)
     tx_power_dbm: float
     carrier_freq_hz: float
     bandwidth_hz: float
-    antenna: AntennaConfig = field(default_factory=AntennaConfig)
 
 
 @dataclass
@@ -37,10 +31,9 @@ class UE:
     """A user device receiving downlink data."""
 
     ue_id: str
-    position: Vec3  # (x, y, z) meters, z = device height
+    position: Vec3  # (x, y, z) metres, z = device height
     traffic_demand_mbps: float
     noise_figure_db: float
-    antenna: AntennaConfig = field(default_factory=AntennaConfig)
 
 
 @dataclass

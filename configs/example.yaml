@@ -1,6 +1,6 @@
-# Example scenario: a small area in central Berlin (~400 x 400 m).
+# Example scenario: a small area of central Berlin.
 # Swap the bbox for any area with OSM building coverage. If OSM returns no
-# buildings for the area, the engine raises an error and stops (no fallback).
+# buildings, the engine raises an error and stops (no fallback).
 
 bbox:
   min_lat: 52.5132
@@ -8,55 +8,30 @@ bbox:
   max_lat: 52.5168
   max_lon: 13.3810
 
-geometry:
-  default_building_height: 15.0
-  meters_per_level: 3.0
-  building_material: itu_concrete
-  ground_material: itu_concrete
+# geometry
+default_building_height_m: 15.0
+meters_per_level: 3.0
+building_material: itu_concrete
 
-network:
-  seed: 42
-  num_sites: 3
-  sectors_per_site: 3
-  bs_height_m: 25.0
-  tx_power_dbm: 46.0
-  carrier_freq_hz: 3.5e9
-  bandwidth_hz: 20.0e6
-  num_ues: 30
-  ue_height_m: 1.5
-  ue_noise_figure_db: 7.0
-  ue_mobility_m: 0.0
-  tx_antenna:
-    num_rows: 4
-    num_cols: 1
-    pattern: tr38901
-    polarization: V
-  rx_antenna:
-    num_rows: 1
-    num_cols: 1
-    pattern: iso
-    polarization: V
+# network (seeded random stand-in for real data)
+seed: 42
+num_sites: 3
+sectors_per_site: 3
+bs_height_m: 25.0
+tx_power_dbm: 46.0
+carrier_freq_hz: 3.5e9
+bandwidth_hz: 20.0e6
+num_ues: 30
+ue_height_m: 1.5
+ue_noise_figure_db: 7.0
+ue_mobility_m: 0.0
 
-propagation:
-  device: cpu
-  max_depth: 3
-  num_samples: 1000000
-  cell_size_m: 5.0
-  los: true
-  reflection: true
-  diffraction: false
-  scattering: false
+# propagation (Sionna RT)
+max_depth: 3
 
-kpi:
-  temperature_k: 290.0
-  sinr_min_db: -10.0
-  sinr_max_db: 30.0
-  max_spectral_efficiency: 7.0
-  min_rx_power_dbm: -140.0
+# kpi
+temperature_k: 290.0
 
-runner:
-  num_snapshots: 3
-  output_dir: output
-  write_csv: true
-  write_json: true
-  write_heatmap: true
+# runner
+num_snapshots: 3
+output_dir: output

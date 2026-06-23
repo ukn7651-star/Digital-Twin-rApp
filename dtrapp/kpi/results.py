@@ -12,12 +12,8 @@ class UEKpi:
     serving_cell: str
     x: float
     y: float
-    z: float
     sinr_db: float
-    spectral_efficiency: float
     throughput_mbps: float
-    traffic_demand_mbps: float
-    covered: bool
 
 
 @dataclass
@@ -26,9 +22,6 @@ class CellKpi:
     cell_id: str
     num_attached: int
     throughput_mbps: float
-    x: float
-    y: float
-    z: float
 
 
 @dataclass
@@ -44,8 +37,4 @@ class SnapshotKpi:
         return [asdict(c) for c in self.cells]
 
     def to_dict(self) -> dict:
-        return {
-            "snapshot": self.index,
-            "ues": self.ue_rows(),
-            "cells": self.cell_rows(),
-        }
+        return {"snapshot": self.index, "ues": self.ue_rows(), "cells": self.cell_rows()}
