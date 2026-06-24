@@ -1,0 +1,8 @@
+# Core engine (geometry, network, KPI, runner)
+numpy>=1.24
+pyyaml>=6.0
+requests>=2.31
+
+# Ray-tracing propagation engine (CPU-capable, GPU-ready). Heavy; install to run
+# the full pipeline:
+#   pip install sionna-rt
