@@ -7,13 +7,13 @@ pipeline.
 """
 
 from dtrapp.network.base import NetworkDataSource
-from dtrapp.network.models import Cell, NetworkSnapshot, UE
+from dtrapp.network.models import Cell, Network, UE
 from dtrapp.network.random_source import RandomNetworkSource
 
 __all__ = [
     "Cell",
     "UE",
-    "NetworkSnapshot",
+    "Network",
     "NetworkDataSource",
     "RandomNetworkSource",
 ]

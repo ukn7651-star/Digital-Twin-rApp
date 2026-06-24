@@ -9,21 +9,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from dtrapp.network.models import NetworkSnapshot
+from dtrapp.network.models import Network
 
 
 class NetworkDataSource(ABC):
-    """Produces a `NetworkSnapshot` for each simulated time index."""
-
-    @property
-    @abstractmethod
-    def num_snapshots(self) -> int:
-        """Total number of snapshots this source can produce."""
+    """Produces the `Network` (cells + UEs) to simulate."""
 
     @abstractmethod
-    def snapshot(self, index: int) -> NetworkSnapshot:
-        """Return the network state at the given snapshot index."""
-
-    def __iter__(self):
-        for i in range(self.num_snapshots):
-            yield self.snapshot(i)
+    def generate(self) -> Network:
+        """Return the network to simulate."""

@@ -9,7 +9,7 @@ Pipeline stages:
     2. network     - seeded generator for cells + UEs (swappable data layer)
     3. propagation - Sionna RT: place TX/RX, solve -> path gain
     4-5. kpi       - multi-cell SINR -> Shannon throughput with resource sharing
-    6. runner      - snapshot loop + output writer + CLI
+    6. runner      - orchestration + output writer + CLI
 """
 
 __version__ = "0.1.0"

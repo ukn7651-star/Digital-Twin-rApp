@@ -25,9 +25,8 @@ def main(argv: list[str] | None = None) -> int:
 
     from dtrapp.runner.pipeline import run_simulation
 
-    results = run_simulation(config)
-    total_ues = sum(len(s.ues) for s in results)
-    print(f"done: {len(results)} snapshot(s), {total_ues} UE samples.")
+    result = run_simulation(config)
+    print(f"done: {len(result.ues)} UEs, {len(result.cells)} cells.")
     return 0
 
 

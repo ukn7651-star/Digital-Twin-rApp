@@ -1,4 +1,4 @@
-"""Data structures describing the network at one snapshot.
+"""Data structures describing the (static) network.
 
 Positions are in the local ENU metric frame (metres, z up) shared with the
 geometry stage, so cells and UEs drop straight into the Sionna scene.
@@ -37,9 +37,8 @@ class UE:
 
 
 @dataclass
-class NetworkSnapshot:
-    """The whole network frozen at one instant."""
+class Network:
+    """The whole network: every cell and every UE."""
 
-    index: int
     cells: list[Cell]
     ues: list[UE]

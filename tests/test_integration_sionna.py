@@ -12,7 +12,7 @@ pytest.importorskip("sionna.rt")
 
 from dtrapp.config import BoundingBox, SimulationConfig
 from dtrapp.geometry import build_scene
-from dtrapp.network.models import Cell, NetworkSnapshot, UE
+from dtrapp.network.models import Cell, Network, UE
 from dtrapp.propagation import SionnaPropagationEngine
 
 
@@ -40,10 +40,10 @@ def test_sionna_path_gain_smoke(tmp_path):
     cell = Cell("c0", (-60.0, 0.0, 25.0), 0.0, 46.0, 3.5e9, 20e6)
     near = UE("near", (-40.0, 0.0, 1.5), 50.0, 7.0)
     far = UE("far", (80.0, 0.0, 1.5), 50.0, 7.0)
-    snap = NetworkSnapshot(0, [cell], [near, far])
+    net = Network([cell], [near, far])
 
     engine = SionnaPropagationEngine(artifacts.scene_xml, cfg)
-    gain = engine.compute_path_gain(snap)
+    gain = engine.compute_path_gain(net)
 
     assert gain.shape == (2, 1)
     assert np.all(np.isfinite(gain))

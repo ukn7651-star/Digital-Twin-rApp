@@ -24,7 +24,6 @@ bandwidth_hz: 20.0e6
 num_ues: 30
 ue_height_m: 1.5
 ue_noise_figure_db: 7.0
-ue_mobility_m: 0.0
 
 # propagation (Sionna RT)
 max_depth: 3
@@ -33,5 +32,4 @@ max_depth: 3
 temperature_k: 290.0
 
 # runner
-num_snapshots: 3
 output_dir: output

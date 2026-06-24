@@ -1,7 +1,7 @@
-"""High-level KPI engine: NetworkSnapshot + path gains -> SnapshotKpi (stages 4-5).
+"""High-level KPI engine: Network + path gains -> KpiResult (stages 4-5).
 
 The path-gain matrix must be indexed [ue_index, cell_index] in the same order as
-`snapshot.ues` and `snapshot.cells`.
+`network.ues` and `network.cells`.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 
 from dtrapp.config import SimulationConfig
-from dtrapp.kpi.results import CellKpi, SnapshotKpi, UEKpi
+from dtrapp.kpi.results import CellKpi, KpiResult, UEKpi
 from dtrapp.kpi.sinr import (
     associate_cells,
     compute_received_power_dbm,
@@ -17,14 +17,14 @@ from dtrapp.kpi.sinr import (
     thermal_noise_dbm,
 )
 from dtrapp.kpi.throughput import shannon_throughput
-from dtrapp.network.models import NetworkSnapshot
+from dtrapp.network.models import Network
 
 
 def compute_kpis(
-    snapshot: NetworkSnapshot, path_gain_db: np.ndarray, config: SimulationConfig
-) -> SnapshotKpi:
-    """Compute per-UE and per-cell KPIs for one snapshot."""
-    cells, ues = snapshot.cells, snapshot.ues
+    network: Network, path_gain_db: np.ndarray, config: SimulationConfig
+) -> KpiResult:
+    """Compute per-UE and per-cell KPIs for the network."""
+    cells, ues = network.cells, network.ues
     num_ues, num_cells = len(ues), len(cells)
 
     path_gain_db = np.asarray(path_gain_db, dtype=float)
@@ -45,11 +45,10 @@ def compute_kpis(
 
     attached = np.bincount(serving, minlength=num_cells)
 
-    result = SnapshotKpi(index=snapshot.index)
+    result = KpiResult()
     for u, ue in enumerate(ues):
         result.ues.append(
             UEKpi(
-                snapshot=snapshot.index,
                 ue_id=ue.ue_id,
                 serving_cell=cells[int(serving[u])].cell_id,
                 x=ue.position[0],
@@ -61,7 +60,6 @@ def compute_kpis(
     for c, cell in enumerate(cells):
         result.cells.append(
             CellKpi(
-                snapshot=snapshot.index,
                 cell_id=cell.cell_id,
                 num_attached=int(attached[c]),
                 throughput_mbps=float(cell_mbps[c]),

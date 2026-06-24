@@ -6,6 +6,6 @@ Sionna provides only the channel/path gain.
 """
 
 from dtrapp.kpi.engine import compute_kpis
-from dtrapp.kpi.results import CellKpi, SnapshotKpi, UEKpi
+from dtrapp.kpi.results import CellKpi, KpiResult, UEKpi
 
-__all__ = ["compute_kpis", "UEKpi", "CellKpi", "SnapshotKpi"]
+__all__ = ["compute_kpis", "UEKpi", "CellKpi", "KpiResult"]

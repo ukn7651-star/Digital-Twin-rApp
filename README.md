@@ -2,7 +2,8 @@
 
 A standalone, **offline** engine that builds a virtual replica of a real-world
 cellular environment and computes **downlink throughput** per user (UE) and per
-cell, using **NVIDIA Sionna RT** ray tracing for radio propagation.
+cell, using **NVIDIA Sionna RT** ray tracing for radio propagation. One static
+scene in, one throughput result out — no time stepping.
 
 ```
 lat/lon bbox ─▶ OpenStreetMap 3D scene ─▶ Sionna RT ray tracing ─▶ SINR ─▶ throughput (Mbps)
@@ -22,7 +23,7 @@ pipeline, one config file, one command. No alternative engines, no extra flags.
 | 2. Network | `dtrapp/network/` | Seeded random cells + UEs behind a **swappable** `NetworkDataSource`. |
 | 3. Propagation | `dtrapp/propagation/` | Sionna RT: place TX/RX, ray-trace → per-link path gain (dB). |
 | 4–5. KPI | `dtrapp/kpi/` | Multi-cell **SINR** → **Shannon throughput** with per-cell resource sharing. |
-| 6. Runner | `dtrapp/runner/` | Snapshot loop, CSV/JSON output, CLI. |
+| 6. Runner | `dtrapp/runner/` | Orchestration, CSV/JSON output, CLI. |
 
 ## Install
 
@@ -46,7 +47,7 @@ Outputs land in the configured `output_dir`:
 
 - `ue_throughput.csv` — per-UE: serving cell, SINR (dB), throughput (Mbps).
 - `cell_throughput.csv` — per-cell: attached UEs, aggregate throughput (Mbps).
-- `throughput.json` — the full dataset across all snapshots.
+- `throughput.json` — the full per-UE and per-cell dataset.
 - `scene/scene.xml` + `scene/meshes/*.ply` — the generated 3D world.
 
 ## Two seams kept for the future (per the brief)

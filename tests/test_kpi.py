@@ -10,7 +10,7 @@ from dtrapp.kpi.sinr import (
     thermal_noise_dbm,
 )
 from dtrapp.kpi.throughput import shannon_throughput, spectral_efficiency
-from dtrapp.network.models import Cell, NetworkSnapshot, UE
+from dtrapp.network.models import Cell, Network, UE
 
 
 def _cfg():
@@ -53,19 +53,19 @@ def test_resource_sharing_splits_bandwidth():
     assert cell_mbps[1] == pytest.approx(20.0)
 
 
-def _toy_snapshot():
+def _toy_network():
     cells = [
         Cell("c0", (0, 0, 25), 0, 46, 3.5e9, 20e6),
         Cell("c1", (500, 0, 25), 0, 46, 3.5e9, 20e6),
     ]
     ues = [UE("ue0", (10, 0, 1.5), 50, 7), UE("ue1", (490, 0, 1.5), 50, 7)]
-    return NetworkSnapshot(0, cells, ues)
+    return Network(cells, ues)
 
 
 def test_compute_kpis_end_to_end():
-    snap = _toy_snapshot()
+    net = _toy_network()
     pg = np.array([[-70.0, -120.0], [-120.0, -70.0]])
-    result = compute_kpis(snap, pg, _cfg())
+    result = compute_kpis(net, pg, _cfg())
     assert len(result.ues) == 2
     assert len(result.cells) == 2
     assert result.ues[0].serving_cell == "c0"
@@ -75,4 +75,4 @@ def test_compute_kpis_end_to_end():
 
 def test_compute_kpis_shape_mismatch_raises():
     with pytest.raises(ValueError):
-        compute_kpis(_toy_snapshot(), np.zeros((2, 3)), _cfg())
+        compute_kpis(_toy_network(), np.zeros((2, 3)), _cfg())

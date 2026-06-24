@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 
 from dtrapp.config import SimulationConfig
-from dtrapp.network.models import NetworkSnapshot
+from dtrapp.network.models import Network
 
 
 def _boresight(azimuth_deg: float, downtilt_deg: float = 8.0) -> tuple[float, float, float]:
@@ -27,7 +27,7 @@ def _boresight(azimuth_deg: float, downtilt_deg: float = 8.0) -> tuple[float, fl
 
 
 class SionnaPropagationEngine:
-    """Computes per-link path gain (dB) for a snapshot via ray tracing."""
+    """Computes per-link path gain (dB) for the network via ray tracing."""
 
     def __init__(self, scene_xml, config: SimulationConfig) -> None:
         self.config = config
@@ -56,8 +56,8 @@ class SionnaPropagationEngine:
             num_rows=1, num_cols=1, pattern="iso", polarization="V"
         )
 
-    def compute_path_gain(self, snapshot: NetworkSnapshot) -> np.ndarray:
-        cells, ues = snapshot.cells, snapshot.ues
+    def compute_path_gain(self, network: Network) -> np.ndarray:
+        cells, ues = network.cells, network.ues
         if not cells or not ues:
             return np.zeros((len(ues), len(cells)), dtype=float)
 

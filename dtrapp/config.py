@@ -3,7 +3,7 @@
 One flat dataclass holds every setting for a run. It can be built in code or
 loaded from a YAML file. Keeping it flat (no nested config objects) keeps the
 whole engine easy to read - the brief itself lists the parameters as a flat set
-(bbox, seed, #cells, #UEs, freq, bandwidth, #snapshots, ...).
+(bbox, seed, #cells, #UEs, freq, bandwidth, ...).
 """
 
 from __future__ import annotations
@@ -67,7 +67,6 @@ class SimulationConfig:
     num_ues: int = 30
     ue_height_m: float = 1.5
     ue_noise_figure_db: float = 7.0
-    ue_mobility_m: float = 0.0  # max metres a UE moves between snapshots
 
     # --- propagation (stage 3): Sionna RT ---
     max_depth: int = 3  # ray interaction depth (reflections)
@@ -76,7 +75,6 @@ class SimulationConfig:
     temperature_k: float = 290.0
 
     # --- runner (stage 6) ---
-    num_snapshots: int = 1
     output_dir: str = "output"
 
     def to_dict(self) -> dict[str, Any]:

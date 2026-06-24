@@ -25,13 +25,13 @@ def test_bbox_center_and_overpass():
 def test_config_yaml_roundtrip(tmp_path):
     cfg = _cfg()
     cfg.seed = 7
-    cfg.num_snapshots = 5
+    cfg.num_ues = 5
     path = tmp_path / "c.yaml"
     cfg.to_yaml(path)
 
     loaded = SimulationConfig.from_yaml(path)
     assert loaded.seed == 7
-    assert loaded.num_snapshots == 5
+    assert loaded.num_ues == 5
     assert loaded.bbox.min_lat == 52.0
 
 
