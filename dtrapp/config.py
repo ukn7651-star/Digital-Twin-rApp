@@ -73,6 +73,8 @@ class SimulationConfig:
 
     # --- kpi (stages 4-5) ---
     temperature_k: float = 290.0
+    bler_target: float = 0.1  # link-adaptation BLER target (Sionna SYS)
+    mcs_table_index: int = 1  # 5G-NR MCS table (1: up to 64QAM, 2: up to 256QAM)
 
     # --- runner (stage 6) ---
     output_dir: str = "output"

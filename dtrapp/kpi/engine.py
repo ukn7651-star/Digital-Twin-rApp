@@ -16,7 +16,7 @@ from dtrapp.kpi.sinr import (
     compute_sinr_db,
     thermal_noise_dbm,
 )
-from dtrapp.kpi.throughput import shannon_throughput
+from dtrapp.kpi.throughput import link_adapted_throughput
 from dtrapp.network.models import Network
 
 
@@ -41,7 +41,9 @@ def compute_kpis(
     serving = associate_cells(rx_power_dbm)
     noise_dbm = thermal_noise_dbm(bandwidth_hz[serving], ue_nf_db, config.temperature_k)
     sinr_db = compute_sinr_db(rx_power_dbm, serving, noise_dbm)
-    ue_mbps, cell_mbps = shannon_throughput(sinr_db, serving, bandwidth_hz, num_cells)
+    ue_mbps, cell_mbps = link_adapted_throughput(
+        sinr_db, serving, bandwidth_hz, num_cells, config
+    )
 
     attached = np.bincount(serving, minlength=num_cells)
 

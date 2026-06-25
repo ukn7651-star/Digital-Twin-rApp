@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dtrapp"
 version = "0.1.0"
-description = "Digital Twin rApp - offline ray-traced downlink throughput engine"
+description = "Digital Twin rApp - offline ray-traced downlink throughput engine (RT + Sionna SYS)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "Apache-2.0" }
@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 rt = ["sionna-rt>=1.0"]
+sys = ["sionna>=1.0"]
 dev = ["pytest>=7.4"]
 
 [project.scripts]

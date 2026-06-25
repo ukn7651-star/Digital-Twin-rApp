@@ -8,7 +8,7 @@ Pipeline stages:
     1. geometry    - OSM bounding box -> Mitsuba scene.xml (no fallback geometry)
     2. network     - seeded generator for cells + UEs (swappable data layer)
     3. propagation - Sionna RT: place TX/RX, solve -> path gain
-    4-5. kpi       - multi-cell SINR -> Shannon throughput with resource sharing
+    4-5. kpi       - multi-cell SINR -> Sionna SYS link-adapted throughput
     6. runner      - orchestration + output writer + CLI
 """
 

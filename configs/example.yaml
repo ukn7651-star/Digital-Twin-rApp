@@ -30,6 +30,8 @@ max_depth: 3
 
 # kpi
 temperature_k: 290.0
+bler_target: 0.1       # link-adaptation BLER target (Sionna SYS)
+mcs_table_index: 1     # 5G-NR MCS table (1: up to 64QAM, 2: up to 256QAM)
 
 # runner
 output_dir: output

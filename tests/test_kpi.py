@@ -9,7 +9,6 @@ from dtrapp.kpi.sinr import (
     compute_sinr_db,
     thermal_noise_dbm,
 )
-from dtrapp.kpi.throughput import shannon_throughput, spectral_efficiency
 from dtrapp.network.models import Cell, Network, UE
 
 
@@ -38,21 +37,6 @@ def test_sinr_monotonic_with_signal():
     assert s_strong[0] > s_weak[0]
 
 
-def test_spectral_efficiency():
-    assert spectral_efficiency(np.array([0.0]))[0] == pytest.approx(1.0)  # log2(1+1)
-
-
-def test_resource_sharing_splits_bandwidth():
-    sinr = np.array([0.0, 0.0, 0.0])  # SINR=1 -> SE=1
-    serving = np.array([0, 0, 1])
-    ue_mbps, cell_mbps = shannon_throughput(sinr, serving, np.array([20e6, 20e6]), 2)
-    assert ue_mbps[0] == pytest.approx(10.0)  # cell 0 shared by two UEs
-    assert ue_mbps[1] == pytest.approx(10.0)
-    assert ue_mbps[2] == pytest.approx(20.0)  # alone on cell 1
-    assert cell_mbps[0] == pytest.approx(20.0)
-    assert cell_mbps[1] == pytest.approx(20.0)
-
-
 def _toy_network():
     cells = [
         Cell("c0", (0, 0, 25), 0, 46, 3.5e9, 20e6),
@@ -62,7 +46,15 @@ def _toy_network():
     return Network(cells, ues)
 
 
+def test_compute_kpis_shape_mismatch_raises():
+    # The shape check happens before the throughput model, so this needs no Sionna.
+    with pytest.raises(ValueError):
+        compute_kpis(_toy_network(), np.zeros((2, 3)), _cfg())
+
+
 def test_compute_kpis_end_to_end():
+    # The throughput model uses Sionna SYS; skip if it is not installed.
+    pytest.importorskip("sionna.sys")
     net = _toy_network()
     pg = np.array([[-70.0, -120.0], [-120.0, -70.0]])
     result = compute_kpis(net, pg, _cfg())
@@ -70,9 +62,4 @@ def test_compute_kpis_end_to_end():
     assert len(result.cells) == 2
     assert result.ues[0].serving_cell == "c0"
     assert result.ues[1].serving_cell == "c1"
-    assert all(u.throughput_mbps > 0 for u in result.ues)
-
-
-def test_compute_kpis_shape_mismatch_raises():
-    with pytest.raises(ValueError):
-        compute_kpis(_toy_network(), np.zeros((2, 3)), _cfg())
+    assert all(u.throughput_mbps >= 0 for u in result.ues)

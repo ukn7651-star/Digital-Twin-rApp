@@ -6,3 +6,7 @@ requests>=2.31
 # Ray-tracing propagation engine (CPU-capable, GPU-ready). Heavy; install to run
 # the full pipeline:
 #   pip install sionna-rt
+#
+# Sionna SYS provides the link-adapted (5G-NR MCS/BLER) throughput model used by
+# the KPI stage:
+#   pip install sionna
