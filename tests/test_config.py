@@ -38,3 +38,21 @@ def test_config_yaml_roundtrip(tmp_path):
 def test_config_requires_bbox():
     with pytest.raises(ValueError):
         SimulationConfig.from_dict({})
+
+
+def test_config_coerces_scientific_notation_strings():
+    # YAML parses unsigned scientific notation (e.g. "3.5e9") as a string;
+    # from_dict must coerce numeric fields back to float/int.
+    cfg = SimulationConfig.from_dict(
+        {
+            "bbox": {"min_lat": 52.0, "min_lon": 13.0, "max_lat": 52.02, "max_lon": 13.04},
+            "carrier_freq_hz": "3.5e9",
+            "bandwidth_hz": "20.0e6",
+            "subcarrier_spacing_hz": "30.0e3",
+            "num_subcarriers": "128",
+        }
+    )
+    assert isinstance(cfg.carrier_freq_hz, float) and cfg.carrier_freq_hz == 3.5e9
+    assert isinstance(cfg.bandwidth_hz, float) and cfg.bandwidth_hz == 20e6
+    assert isinstance(cfg.subcarrier_spacing_hz, float) and cfg.subcarrier_spacing_hz == 30e3
+    assert isinstance(cfg.num_subcarriers, int) and cfg.num_subcarriers == 128

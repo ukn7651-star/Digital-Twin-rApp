@@ -8,7 +8,7 @@ whole engine easy to read - the brief itself lists the parameters as a flat set
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -90,7 +90,17 @@ class SimulationConfig:
         data = dict(data)
         if "bbox" not in data:
             raise ValueError("config must define a 'bbox'")
-        bbox = BoundingBox(**data.pop("bbox"))
+        bbox_data = {k: float(v) for k, v in data.pop("bbox").items()}
+        bbox = BoundingBox(**bbox_data)
+        # Coerce numeric fields to their declared type. YAML parses unsigned
+        # scientific notation (e.g. ``3.5e9``, ``30.0e3``) as a string, so we
+        # cast here to keep config values numeric regardless of how they're written.
+        casters = {"float": float, "int": int}
+        for f in fields(cls):
+            if f.name in data and isinstance(data[f.name], str):
+                cast = casters.get(getattr(f, "type", None))
+                if cast is not None:
+                    data[f.name] = cast(data[f.name])
         return cls(bbox=bbox, **data)
 
     def to_yaml(self, path: str | Path) -> None:
