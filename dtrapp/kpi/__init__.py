@@ -1,12 +1,13 @@
-"""Stages 4-5 - KPI: multi-cell SINR and SINR -> downlink throughput.
+"""Stages 4-5 - KPI: full Sionna SYS link-level chain.
 
-SINR includes inter-cell interference (not just noise) and is computed from the
-ray-traced path gains. The SINR -> throughput mapping uses Sionna SYS's
-link-to-system abstraction (link adaptation + PHY abstraction over 5G-NR MCS
-tables) with per-cell resource sharing.
+From the ray-traced channel (CFR): post-equalization SINR (RZF precoding + LMMSE
+equalizer) with inter-cell interference, link adaptation over 5G-NR MCS tables
+(`InnerLoopLinkAdaptation` + `PHYAbstraction`), and proportional-fair resource
+sharing -> per-UE and per-cell downlink throughput.
 """
 
 from dtrapp.kpi.engine import compute_kpis
 from dtrapp.kpi.results import CellKpi, KpiResult, UEKpi
+from dtrapp.kpi.sys_link import compute_link_level_kpis
 
-__all__ = ["compute_kpis", "UEKpi", "CellKpi", "KpiResult"]
+__all__ = ["compute_kpis", "compute_link_level_kpis", "UEKpi", "CellKpi", "KpiResult"]

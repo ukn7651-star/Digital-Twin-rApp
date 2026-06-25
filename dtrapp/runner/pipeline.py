@@ -3,8 +3,8 @@
 Wires the six stages together:
     1. build the 3D scene from OSM (no fallback)
     2. construct the (swappable) network data source
-    3. build the Sionna RT propagation engine
-    4-5. path gain -> SINR -> throughput
+    3. ray-trace the channel (CFR) with Sionna RT
+    4-5. Sionna SYS link-level chain: post-eq SINR -> link adaptation -> throughput
     6. write the dataset and return the KPIs
 """
 
@@ -40,11 +40,12 @@ def run_simulation(
         network_source = RandomNetworkSource(config, artifacts.extent_m)
     network = network_source.generate()
 
-    print("[2/3] Initializing Sionna RT engine ...")
+    print("[2/3] Ray-tracing the channel (Sionna RT) ...")
     engine = SionnaPropagationEngine(artifacts.scene_xml, config)
+    cfr = engine.compute_cfr(network)
 
-    path_gain_db = engine.compute_path_gain(network)
-    result = compute_kpis(network, path_gain_db, config)
+    print("      Computing link-level throughput (Sionna SYS) ...")
+    result = compute_kpis(network, cfr, config)
     mean_tp = sum(u.throughput_mbps for u in result.ues) / len(result.ues) if result.ues else 0.0
     print(f"      {len(result.ues)} UEs, mean throughput {mean_tp:.2f} Mbps")
 

@@ -2,21 +2,22 @@
 
 A standalone, **offline** engine that builds a virtual replica of a real-world
 cellular environment and computes **downlink throughput** per user (UE) and per
-cell, using **NVIDIA Sionna RT** ray tracing for radio propagation and
-**NVIDIA Sionna SYS** link adaptation for the SINR → throughput mapping. One
-static scene in, one throughput result out — no time stepping.
+cell, using **NVIDIA Sionna RT** ray tracing for the channel and the **full
+NVIDIA Sionna SYS link-level chain** (post-equalization SINR → link adaptation →
+proportional-fair scheduling) for throughput. One static scene in, one throughput
+result out — no time stepping.
 
 ```
-lat/lon bbox ─▶ OpenStreetMap 3D scene ─▶ Sionna RT ray tracing ─▶ SINR ─▶ Sionna SYS link adaptation ─▶ throughput (Mbps)
-                      (stage 1)                  (stage 3)        (stage 4)            (stage 5)
-                base stations + users ─────────────▲
-                      (stage 2)
+lat/lon bbox ─▶ OSM 3D scene ─▶ Sionna RT channel (CFR) ─▶ Sionna SYS link level ─▶ throughput (Mbps)
+                  (stage 1)          (stage 3)            (post-eq SINR + LA + PF)
+            base stations + users ───────▲                      (stages 4-5)
+                  (stage 2)
 ```
 
 This is a deliberately small reconstruction of the engine's behavior: one
 pipeline, one config file, one command. No alternative engines, no extra flags.
-It is the **RT + Sionna SYS** counterpart of the RT + Shannon baseline: only the
-throughput stage differs.
+It is the **RT + Sionna SYS** counterpart of the RT + Shannon baseline: the
+throughput stage is the full Sionna SYS system-level chain.
 
 ## Pipeline (one module per stage)
 
@@ -24,8 +25,8 @@ throughput stage differs.
 |-------|--------|--------------|
 | 1. Geometry | `dtrapp/geometry/` | bbox → Overpass API → footprints → extrude to 3D → `scene.xml`. **No fallback**: errors out if OSM fails. |
 | 2. Network | `dtrapp/network/` | Seeded random cells + UEs behind a **swappable** `NetworkDataSource`. |
-| 3. Propagation | `dtrapp/propagation/` | Sionna RT: place TX/RX, ray-trace → per-link path gain (dB). |
-| 4–5. KPI | `dtrapp/kpi/` | Multi-cell **SINR** → **Sionna SYS link adaptation** (5G-NR MCS / BLER) with per-cell resource sharing. |
+| 3. Propagation | `dtrapp/propagation/` | Sionna RT: place TX/RX, ray-trace → channel frequency response (CFR). |
+| 4–5. KPI | `dtrapp/kpi/` | **Full Sionna SYS link-level chain**: post-eq SINR (RZF + LMMSE) with inter-cell interference → link adaptation (5G-NR MCS/BLER) → PF resource sharing. |
 | 6. Runner | `dtrapp/runner/` | Orchestration, CSV/JSON output, CLI. |
 
 ## Install
@@ -59,24 +60,33 @@ Outputs land in the configured `output_dir`:
 - **Swappable data layer.** Real network data will replace the random generator.
   Implement `dtrapp.network.base.NetworkDataSource` and pass it to
   `run_simulation(config, network_source=...)` — nothing else changes.
-- **Throughput model seam.** This build maps SINR → throughput with **Sionna SYS
-  link adaptation**: `InnerLoopLinkAdaptation` picks the highest 5G-NR MCS whose
-  BLER stays within `bler_target` (via `PHYAbstraction`), and the chosen MCS gives
-  a capped spectral efficiency. `dtrapp/kpi/throughput.py` is the single place
-  this lives; the SINR and runner layers are untouched. Next steps toward the full
-  Rimedo-Labs-style model: MIMO layers and a PF scheduler (Sionna SYS provides
-  both, `PFSchedulerSUMIMO`).
+- **Throughput model seam.** Stages 4-5 are the full Sionna SYS link-level chain
+  in `dtrapp/kpi/sys_link.py` (the single place the throughput model lives; the
+  propagation and runner layers are untouched).
 
-## Throughput model (RT + SYS)
+## Throughput model (RT + SYS link level)
 
-- `dtrapp/kpi/sinr.py` computes the multi-cell SINR from the ray-traced path gains
-  (signal / (inter-cell interference + thermal noise)) — pure NumPy.
-- `dtrapp/kpi/throughput.py` feeds each UE's effective SINR to Sionna SYS:
-  - `InnerLoopLinkAdaptation` → MCS index for the target BLER,
-  - spectral efficiency `SE = Qm · coderate` (capped by the modulation order),
-  - per-UE goodput `(B_cell / K_cell) · SE · (1 − bler_target)`.
-- Config knobs: `bler_target` (default `0.1`) and `mcs_table_index`
-  (`1` = up to 64QAM, `2` = up to 256QAM).
+`dtrapp/kpi/sys_link.py` turns the ray-traced channel into throughput exactly the
+way Sionna SYS does for system-level 5G-NR studies:
+
+1. **Channel.** `SionnaPropagationEngine.compute_cfr` ray-traces the channel
+   frequency response per cell → UE over a representative OFDM resource grid.
+2. **Association.** Each UE attaches to the cell with the strongest received
+   power.
+3. **Post-equalization SINR.** Per UE, `RZFPrecodedChannel` (regularized
+   zero-forcing precoding — beamforming gain from the 4-element BS array) +
+   `LMMSEPostEqualizationSINR` produce the post-equalization SINR. Inter-cell
+   interference (full-buffer neighbours) is folded into the effective noise.
+4. **Link adaptation.** `InnerLoopLinkAdaptation` + `PHYAbstraction` pick the
+   highest 5G-NR MCS within `bler_target`; the MCS gives a capped spectral
+   efficiency `SE = Qm · coderate`.
+5. **Scheduling.** Proportional-fair sharing of each cell's airtime among its
+   UEs — on a static full-buffer snapshot this is provably equal airtime
+   (`1/K_cell`). Per-UE goodput `= (B_cell / K_cell) · SE · (1 − bler_target)`.
+
+Config knobs: `bler_target` (default `0.1`), `mcs_table_index` (`1` = up to
+64QAM, `2` = up to 256QAM), `subcarrier_spacing_hz`, `num_subcarriers`,
+`num_ofdm_symbols`.
 
 ## Tests
 
@@ -84,6 +94,6 @@ Outputs land in the configured `output_dir`:
 python3 -m pytest -q
 ```
 
-The pure-Python stages (geometry, network, SINR) run without Sionna.
-`test_integration_sionna.py` ray-traces a tiny scene and is skipped when Sionna RT
-is absent; the end-to-end KPI test is skipped when **Sionna SYS** is absent.
+The pure-Python stages (geometry, network) run without Sionna. The Sionna RT
+integration test and the link-level KPI tests build a tiny scene from canned OSM
+and are skipped automatically when Sionna is not installed.

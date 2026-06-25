@@ -29,6 +29,10 @@ def _boresight(azimuth_deg: float, downtilt_deg: float = 8.0) -> tuple[float, fl
 class SionnaPropagationEngine:
     """Computes per-link path gain (dB) for the network via ray tracing."""
 
+    # Antenna array geometry (shared by all transmitters / receivers).
+    NUM_BS_ROWS = 4
+    NUM_BS_COLS = 1
+
     def __init__(self, scene_xml, config: SimulationConfig) -> None:
         self.config = config
         try:
@@ -48,24 +52,25 @@ class SionnaPropagationEngine:
         self._Transmitter = Transmitter
         self._Receiver = Receiver
         self._solver = PathSolver()
-        # One fixed antenna array for all transmitters / receivers (v1).
+        # One fixed antenna array for all transmitters / receivers.
         self._scene.tx_array = PlanarArray(
-            num_rows=4, num_cols=1, pattern="tr38901", polarization="V"
+            num_rows=self.NUM_BS_ROWS, num_cols=self.NUM_BS_COLS,
+            pattern="tr38901", polarization="V",
         )
         self._scene.rx_array = PlanarArray(
             num_rows=1, num_cols=1, pattern="iso", polarization="V"
         )
+        self.num_bs_ant = self.NUM_BS_ROWS * self.NUM_BS_COLS
 
-    def compute_path_gain(self, network: Network) -> np.ndarray:
-        cells, ues = network.cells, network.ues
-        if not cells or not ues:
-            return np.zeros((len(ues), len(cells)), dtype=float)
+    @property
+    def carrier_frequency(self) -> float:
+        return float(self._scene.frequency)
 
+    def _place_devices(self, network: Network) -> None:
         scene = self._scene
-        scene.frequency = float(cells[0].carrier_freq_hz)
+        scene.frequency = float(network.cells[0].carrier_freq_hz)
         self._clear()
-
-        for cell in cells:
+        for cell in network.cells:
             px, py, pz = cell.position
             dx, dy, dz = _boresight(cell.azimuth_deg)
             scene.add(
@@ -76,11 +81,50 @@ class SionnaPropagationEngine:
                     power_dbm=float(cell.tx_power_dbm),
                 )
             )
-        for ue in ues:
+        for ue in network.ues:
             scene.add(self._Receiver(name=ue.ue_id, position=list(ue.position)))
 
-        paths = self._solver(scene, max_depth=self.config.max_depth)
+    def compute_path_gain(self, network: Network) -> np.ndarray:
+        cells, ues = network.cells, network.ues
+        if not cells or not ues:
+            return np.zeros((len(ues), len(cells)), dtype=float)
+
+        self._place_devices(network)
+        paths = self._solver(scene=self._scene, max_depth=self.config.max_depth)
         return self._path_gain_db(paths, len(ues), len(cells))
+
+    def compute_cfr(self, network: Network):
+        """Ray-traced channel frequency response for every cell -> UE link.
+
+        Returns a torch tensor of shape
+        ``[num_ues, num_ue_ant, num_cells, num_bs_ant, num_ofdm_symbols, num_sc]``
+        (the layout Sionna SYS expects, with num_rx=UEs, num_tx=cells), over a
+        representative OFDM resource grid defined by the config. Used by the
+        Sionna SYS link-level throughput model.
+        """
+        from sionna.phy.ofdm import ResourceGrid
+        from sionna.rt import subcarrier_frequencies
+
+        cfg = self.config
+        rg = ResourceGrid(
+            num_ofdm_symbols=cfg.num_ofdm_symbols,
+            fft_size=cfg.num_subcarriers,
+            subcarrier_spacing=cfg.subcarrier_spacing_hz,
+            num_tx=1,
+            num_streams_per_tx=1,
+        )
+        frequencies = subcarrier_frequencies(
+            num_subcarriers=cfg.num_subcarriers,
+            subcarrier_spacing=cfg.subcarrier_spacing_hz,
+        )
+        self._place_devices(network)
+        paths = self._solver(scene=self._scene, max_depth=cfg.max_depth)
+        return paths.cfr(
+            frequencies=frequencies,
+            sampling_frequency=1.0 / rg.ofdm_symbol_duration,
+            num_time_steps=cfg.num_ofdm_symbols,
+            out_type="torch",
+        )
 
     def _clear(self) -> None:
         for name in list(self._scene.transmitters.keys()):

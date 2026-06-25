@@ -28,10 +28,13 @@ ue_noise_figure_db: 7.0
 # propagation (Sionna RT)
 max_depth: 3
 
-# kpi
+# kpi (Sionna SYS link-level chain)
 temperature_k: 290.0
-bler_target: 0.1       # link-adaptation BLER target (Sionna SYS)
-mcs_table_index: 1     # 5G-NR MCS table (1: up to 64QAM, 2: up to 256QAM)
+bler_target: 0.1            # link-adaptation BLER target
+mcs_table_index: 1         # 5G-NR MCS table (1: up to 64QAM, 2: up to 256QAM)
+subcarrier_spacing_hz: 30.0e3
+num_subcarriers: 128       # representative sub-band for the post-eq SINR / MCS
+num_ofdm_symbols: 12
 
 # runner
 output_dir: output
