@@ -1,0 +1,321 @@
+%==============================================================================
+% Digital Twin rApp - Downlink Throughput Engine : Build Report
+%
+% HOW TO USE THIS TEMPLATE IN OVERLEAF
+% 1. Create a new Overleaf project and paste this file as main.tex.
+% 2. Upload your 8 images using the exact file names referenced below
+%    (fig_geojson.png, fig_3d_scene.png, ...). PNG/JPG/PDF all work.
+% 3. Flip the switch on the next line from \useplaceholderstrue to
+%    \useplaceholdersfalse. Every placeholder box then becomes your real image.
+%==============================================================================
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{underscore} % lets us type underscores in text without escaping
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+% ---- image placeholder switch -----------------------------------------------
+\newif\ifuseplaceholders
+\useplaceholderstrue % <-- change to \useplaceholdersfalse once images are uploaded
+
+% \figobs{filename}{width-fraction}{caption}{observation}
+\newcommand{\figobs}[4]{%
+  \begin{figure}[H]
+    \centering
+    \ifuseplaceholders
+      \fbox{\parbox[c][4.5cm][c]{#2\textwidth}{\centering\itshape [\,Image placeholder:\ \texttt{#1}\,]}}%
+    \else
+      \includegraphics[width=#2\textwidth]{#1}%
+    \fi
+    \caption{#3}
+  \end{figure}%
+  \noindent\textbf{Observation.}~#4\par\medskip
+}
+
+% ---- title ------------------------------------------------------------------
+\title{Digital Twin rApp\\[2pt]\large Downlink Throughput Engine --- Build Report}
+\author{[Your Name] \\ [Team / Group]}
+\date{[Date]}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+I have built the downlink throughput engine for the Digital Twin rApp. It takes a
+real-world area, reconstructs it as a ray-traced 3D radio environment, and
+computes downlink throughput per UE and per cell.
+\end{abstract}
+
+%==============================================================================
+\section{Two Distinct Parts --- Please Don't Conflate Them}
+
+\subsection*{A) The Engine (\texttt{dtrapp} package + CLI)}
+This is the actual product. It runs the whole simulation and produces the results
+in the output directory, from one command:
+\begin{verbatim}
+python3 -m dtrapp.runner.cli configs/example.yaml
+\end{verbatim}
+It needs nothing else to run.
+
+\smallskip
+\noindent\textbf{Note:} It will not run on older GPUs present on the remote Linux
+provided to us. Please set the following before running the CLI. It runs
+reasonably fast on CPU for this small scene.
+\begin{verbatim}
+export CUDA_VISIBLE_DEVICES=""
+\end{verbatim}
+
+\subsection*{B) The Notebook (\texttt{dtrapp\_sionna\_walkthrough.ipynb})}
+Purely for visualization and understanding. It re-runs the same pipeline step by
+step with plots so anyone can see what's happening. It is not part of the run
+path --- the engine runs fine without it.
+
+%==============================================================================
+\section{Abstract --- Pipeline End to End (The Engine)}
+
+The only input is one \texttt{config.yaml}. Its primary constituent is a lat/lon
+bounding box, given as its two diagonal corners (\texttt{min_lat}/\texttt{min_lon},
+\texttt{max_lat}/\texttt{max_lon}). The same file sets:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Geometry:} \texttt{default_building_height_m} (fallback when OSM
+  lacks a height), \texttt{meters_per_level}, \texttt{building_material}.
+  \item \textbf{Network} (seeded RNG stand-in for live data): \texttt{seed} (full
+  reproducibility), \texttt{num_sites}, \texttt{sectors_per_site},
+  \texttt{bs_height_m}, \texttt{tx_power_dbm}, \texttt{carrier_freq_hz},
+  \texttt{bandwidth_hz}, \texttt{num_ues}, \texttt{ue_height_m},
+  \texttt{ue_noise_figure_db}.
+  \item \textbf{Antennas} (configurable, not hardcoded):
+  \texttt{bs_antenna_rows/cols/pattern/polarization} (e.g., a $4\times1$ TR-38.901
+  vertically-polarized panel), the \texttt{ue_antenna_*} equivalents (e.g.,
+  $1\times1$ isotropic), \texttt{antenna_spacing} (in wavelengths), and BS
+  \texttt{downtilt_deg}.
+  \item \textbf{KPI / Link Layer:} \texttt{temperature_k} (thermal-noise
+  reference), \texttt{bler_target} (link-adaptation BLER target),
+  \texttt{mcs_table_index} (5G-NR MCS table 1/2), and the OFDM grid
+  (\texttt{subcarrier_spacing_hz}, \texttt{num_subcarriers},
+  \texttt{num_ofdm_symbols}).
+  \item \textbf{Output Directory.}
+\end{enumerate}
+
+From the bbox, the engine queries the OpenStreetMap Overpass API for building
+footprints, extrudes them into a 3D mesh, and writes a Mitsuba scene that Sionna
+RT loads --- i.e., it reconstructs the real environment in the ray tracer (no
+fallback geometry: if OSM returns nothing, it errors out rather than fabricating a
+scene). It places one transmitter per cell and one receiver per UE, ray-traces the
+channel frequency response (CFR), and from that computes per-UE SINR and then
+downlink throughput (Mbps), written to \texttt{ue_throughput.csv},
+\texttt{cell_throughput.csv}, and \texttt{throughput.json}.
+
+%==============================================================================
+\section{Swappable Data Layer for Real Network Data}
+
+The cell/UE generator sits behind a \texttt{NetworkDataSource} interface; the rest
+of the pipeline depends only on that interface. Integrating live network data means
+implementing one class (projecting real BS/UE coordinates into the scene's local
+ENU frame) --- no downstream changes.
+
+%==============================================================================
+\section{Sionna SYS Link Model (The Throughput Stage)}
+
+\begin{itemize}[leftmargin=*]
+  \item Sionna RT yields the CFR.
+  \item Sionna SYS turns it into a realistic 5G-NR rate:
+  \begin{itemize}
+    \item Post-equalization SINR via regularized zero-forcing (RZF) precoding ---
+    capturing the BS array's beamforming gain --- plus an LMMSE equalizer.
+    Inter-cell interference from neighbouring cells is included (folded into the
+    effective noise), not just thermal noise.
+    \item Link adaptation (\texttt{InnerLoopLinkAdaptation} +
+    \texttt{PHYAbstraction}) selects the highest MCS whose BLER stays within
+    \texttt{bler_target}, using NVIDIA's NR BLER tables $\rightarrow$ a
+    modulation-capped spectral efficiency (throughput is bounded by the real MCS
+    ceiling, not unbounded Shannon).
+    \item Proportional-fair scheduling shares each cell's airtime across its
+    attached UEs.
+  \end{itemize}
+\end{itemize}
+
+%==============================================================================
+\section{Visualization \& Verification (via the Notebook \& geojson.io)}
+
+\subsection{GeoJSON / Overpass Turbo Cross-check}
+The bbox polygon and building footprints match the real map, and each scene shape
+maps back to its OSM way ID, confirming the reconstruction is faithful.
+
+\figobs{fig_geojson.png}{0.8}
+{geojson.io / Overpass Turbo: the bbox and building footprints over the real map.}
+{The bounding-box polygon and the extracted building footprints align with the real
+map, and each footprint maps back to its OSM way ID. This confirms the
+reconstruction is a faithful copy of the OpenStreetMap data for the chosen area.}
+
+\subsection{Per-stage Visualization (The Notebook)}
+The notebook is where the results are made visible and checkable, stage by stage:
+the 3D scene, the BS/UE layout, the ray paths, the path-gain heatmap, and the
+SINR/throughput distributions.
+
+\figobs{fig_3d_scene.png}{0.8}
+{The 3D scene reconstructed in Sionna RT.}
+{The OSM footprints are extruded into flat-roof prisms over a flat ground plane and
+loaded into Sionna RT as a Mitsuba scene. This is the ray-traced 3D reconstruction
+of the real environment in which propagation is computed.}
+
+\figobs{fig_bs_ue_positions.png}{0.8}
+{Base-station and UE positions with their IDs.}
+{Top-down layout of the seeded network, with one transmitter per cell and one
+receiver per UE, each labelled by ID. Sites are placed uniformly with sectors split
+evenly ($360^\circ/N$), and UEs are placed uniformly across the scene.}
+
+\figobs{fig_rt_paths.png}{0.8}
+{Ray-traced propagation paths between transmitters and receivers.}
+{The actual rays traced between transmitters and receivers --- the LOS path plus up
+to \texttt{max_depth}~$=3$ reflections (no diffraction). It shows how the building
+geometry channels and blocks propagation.}
+
+\figobs{fig_path_gain.png}{0.8}
+{Per-link path gain for every BS--UE pair.}
+{Ray-traced path gain for each BS--UE link. Strong gains correspond to LOS / nearby
+links, while weak gains correspond to NLOS links shadowed by buildings --- consistent
+with the scene geometry.}
+
+\figobs{fig_sinr_throughput_dist.png}{0.85}
+{Distribution of per-UE SINR and downlink throughput.}
+{Distribution of post-equalization SINR and the resulting downlink throughput across
+all UEs. Throughput is capped by the selected 5G-NR MCS (modulation-limited, not
+unbounded Shannon).}
+
+\subsection{Physically-interpretable Maps}
+Top-down plots overlay buildings, cells (with sector boresight) and UEs coloured by
+throughput, so results are explainable: a UE in NLOS behind a building shows low
+SINR and low throughput, as expected.
+
+\figobs{fig_ue_throughput_map.png}{0.85}
+{UEs coloured by throughput, each linked to its serving cell.}
+{Top-down map overlaying buildings, cells (with sector boresight) and UEs coloured by
+throughput, each linked to its serving cell. A UE in NLOS behind a building shows low
+SINR and low throughput, exactly as expected.}
+
+\subsection{Two-UE Factor Comparison}
+For any UE pair, a side-by-side table (distance, path gain, interference, SINR, cell
+load, bandwidth share, throughput) decomposes the throughput gap into resource
+sharing (cell load) vs.\ SINR and names the dominant driver.
+
+\figobs{fig_ue6_ue7_comparison.png}{0.9}
+{Qualitative comparison of UE6 vs.\ UE7 (engine output).}
+{Side-by-side decomposition for the UE pair separating the throughput gap into
+resource-sharing vs.\ SINR effects. Here a closer LOS UE underperforms because it sits
+near a cell edge with high inter-cell interference.}
+
+%==============================================================================
+\section{Status --- Remaining}
+\begin{enumerate}[leftmargin=*]
+  \item Ingest real network data via the swappable layer.
+  \item Calibrate against a reference so absolute throughput matches a real network.
+  \item Per-device heterogeneous antennas (Sionna RT applies one TX/RX array per
+  solve, so this needs a grouped-per-antenna-type solve).
+\end{enumerate}
+
+%==============================================================================
+\section{Open Problem --- Validating Absolute Throughput}
+I can verify the engine's behaviour (modulation-capped rates, per-cell resource
+sharing, SINR/throughput consistent with geometry and interference), but I cannot
+yet validate the absolute Mbps values, because the network is randomly generated and
+there's no ground-truth measurement to compare against. Closing this needs either
+real network data or a trusted calibration reference.
+
+\medskip
+\noindent\textbf{Code availability.} The entire codebase is uploaded to datastore:
+\begin{verbatim}
+\\datastore\network_team\Network_Team\General\interns\btech_26\
+Digital_Twin_krushnansh\minsysdtrapp
+\end{verbatim}
+Please run the \texttt{.ipynb} file to get an easy understanding of the codebase.
+
+%==============================================================================
+\section{Assumptions}
+
+\subsection{Environment / Geometry}
+\begin{itemize}[leftmargin=*]
+  \item Buildings only, flat ground. Scene = OSM building footprints extruded to
+  flat-roof prisms over a flat ground plane at $z=0$. No terrain/elevation, no
+  vegetation, vehicles, street furniture, or indoor structure.
+  \item Single radio material for everything. All buildings and the ground share one
+  material (e.g., \texttt{itu_concrete}); no glass/brick/metal differentiation.
+  \item Building heights are often inferred: explicit OSM height, else number of
+  levels $\times$ \texttt{meters_per_level}, else a default value (many buildings are
+  guessed).
+  \item Local flat-earth (equirectangular) projection about the bbox centre.
+\end{itemize}
+
+\subsection{Antennas}
+\begin{itemize}[leftmargin=*]
+  \item Uniform arrays: one BS antenna array applies to ALL base stations and one UE
+  array to ALL UEs (Sionna RT uses a single TX/RX array per solve). No per-device /
+  heterogeneous antennas.
+  \item Fixed electrical downtilt for every sector; fixed element spacing
+  (0.5 wavelength by default).
+\end{itemize}
+
+\subsection{Network Data (Current Stand-in)}
+\begin{itemize}[leftmargin=*]
+  \item Randomly generated, not real --- seeded RNG for BS/UE positions and config.
+  \item Single carrier frequency for all cells $\rightarrow$ full frequency reuse
+  (reuse-1): every other cell is a co-channel interferer. No multi-carrier / carrier
+  aggregation.
+  \item Homogeneous cells: identical Tx power, bandwidth, and antenna for every cell.
+  \item Random uniform placement of sites (sectors split evenly, $360^\circ/N$) and
+  UEs; UEs are outdoor at a fixed height and may even fall inside a building footprint
+  (no placement check).
+  \item Static, single snapshot: no UE mobility, no time evolution. Generated traffic
+  demand is unused (full-buffer assumption).
+\end{itemize}
+
+\subsection{Propagation (Sionna RT)}
+\begin{itemize}[leftmargin=*]
+  \item Bounded ray interactions: \texttt{max_depth} reflections (default 3); no
+  diffraction modelling.
+  \item Static channel, perfect CSI: no fast fading / Doppler, and channel knowledge
+  is assumed perfect (no estimation error).
+\end{itemize}
+
+\subsection{SINR / Link Layer (Sionna SYS)}
+\begin{itemize}[leftmargin=*]
+  \item Inter-cell interference = full-buffer neighbours folded into the noise: every
+  other cell is assumed to transmit at full power on all resources (worst-case,
+  constant interference), treated as added noise rather than joint detection.
+  \item Single-stream SU-MIMO: one UE per resource element per cell, so no intra-cell
+  multi-user interference and no MIMO spatial-multiplexing layers (the BS array
+  provides beamforming gain only).
+  \item Representative sub-band SINR: post-equalization SINR is computed on a small
+  OFDM grid (\texttt{num_subcarriers}, e.g., 128) and assumed representative;
+  throughput then scales with the full configured \texttt{bandwidth_hz}.
+  \item Frequency-flat MCS selection: a single effective SINR per UE drives the MCS
+  choice.
+\end{itemize}
+
+\subsection{Throughput / Scheduling}
+\begin{itemize}[leftmargin=*]
+  \item Proportional-fair = equal airtime: valid for this static, full-buffer single
+  snapshot (PF reduces to $1/K$ per cell).
+  \item BLER pinned at target: goodput = spectral efficiency $\times$
+  \texttt{(1 - bler_target)}; no explicit control-channel / reference-signal overhead
+  beyond the PHY abstraction.
+  \item Strongest-cell association: each UE attaches to the single highest-received-
+  power cell; no load balancing, CoMP, or handover.
+  \item Downlink only.
+  \item Single MCS table (64QAM by default; 256QAM optional).
+\end{itemize}
+
+\subsection{Validation}
+\begin{itemize}[leftmargin=*]
+  \item Uncalibrated: the model is not yet calibrated against real measurements, so
+  absolute throughput values are unvalidated.
+\end{itemize}
+
+\end{document}
