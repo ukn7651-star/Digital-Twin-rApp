@@ -25,7 +25,7 @@ throughput stage is the full Sionna SYS system-level chain.
 |-------|--------|--------------|
 | 1. Geometry | `dtrapp/geometry/` | bbox → Overpass API → footprints → extrude to 3D → `scene.xml`. **No fallback**: errors out if OSM fails. |
 | 2. Network | `dtrapp/network/` | Seeded random cells + UEs behind a **swappable** `NetworkDataSource`. |
-| 3. Propagation | `dtrapp/propagation/` | Sionna RT: place TX/RX, ray-trace → channel frequency response (CFR). |
+| 3. Propagation | `dtrapp/propagation/` | Sionna RT: place TX/RX (antenna arrays from config), ray-trace → channel frequency response (CFR). |
 | 4–5. KPI | `dtrapp/kpi/` | **Full Sionna SYS link-level chain**: post-eq SINR (RZF + LMMSE) with inter-cell interference → link adaptation (5G-NR MCS/BLER) → PF resource sharing. |
 | 6. Runner | `dtrapp/runner/` | Orchestration, CSV/JSON output, CLI. |
 
@@ -87,6 +87,20 @@ way Sionna SYS does for system-level 5G-NR studies:
 Config knobs: `bler_target` (default `0.1`), `mcs_table_index` (`1` = up to
 64QAM, `2` = up to 256QAM), `subcarrier_spacing_hz`, `num_subcarriers`,
 `num_ofdm_symbols`.
+
+## Antennas (config-driven)
+
+The antenna arrays are set in the config, not hardcoded:
+`bs_antenna_rows`/`bs_antenna_cols`/`bs_antenna_pattern`/`bs_antenna_polarization`
+for the base stations, the `ue_antenna_*` equivalents for the UEs, plus
+`antenna_spacing` (in wavelengths) and `downtilt_deg`.
+
+Note (per-device antennas): Sionna RT applies **one** TX array to all
+transmitters and **one** RX array to all receivers per solve, so the current
+build uses a single BS array and a single UE array. Heterogeneous antennas
+(different arrays per BS/UE, as real data may have) would be handled by grouping
+devices by antenna type and solving per group — a planned extension carried
+through the swappable data layer.
 
 ## Tests
 

@@ -71,6 +71,18 @@ class SimulationConfig:
     # --- propagation (stage 3): Sionna RT ---
     max_depth: int = 3  # ray interaction depth (reflections)
 
+    # --- antennas (stage 3) ---
+    bs_antenna_rows: int = 4
+    bs_antenna_cols: int = 1
+    bs_antenna_pattern: str = "tr38901"  # 3GPP sector pattern; "iso", "dipole", ...
+    bs_antenna_polarization: str = "V"  # "V", "H", "VH" (dual), "cross"
+    ue_antenna_rows: int = 1
+    ue_antenna_cols: int = 1
+    ue_antenna_pattern: str = "iso"
+    ue_antenna_polarization: str = "V"
+    antenna_spacing: float = 0.5  # element spacing, multiples of wavelength
+    downtilt_deg: float = 8.0  # BS sector electrical downtilt
+
     # --- kpi (stages 4-5): Sionna SYS link-level chain ---
     temperature_k: float = 290.0
     bler_target: float = 0.1  # link-adaptation BLER target

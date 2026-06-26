@@ -28,6 +28,18 @@ ue_noise_figure_db: 7.0
 # propagation (Sionna RT)
 max_depth: 3
 
+# antennas
+bs_antenna_rows: 4
+bs_antenna_cols: 1
+bs_antenna_pattern: tr38901     # 3GPP sector pattern; or "iso", "dipole"
+bs_antenna_polarization: V      # V, H, VH (dual), cross
+ue_antenna_rows: 1
+ue_antenna_cols: 1
+ue_antenna_pattern: iso
+ue_antenna_polarization: V
+antenna_spacing: 0.5            # element spacing (multiples of wavelength)
+downtilt_deg: 8.0
+
 # kpi (Sionna SYS link-level chain)
 temperature_k: 290.0
 bler_target: 0.1            # link-adaptation BLER target

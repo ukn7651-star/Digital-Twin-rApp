@@ -17,7 +17,7 @@ from dtrapp.config import SimulationConfig
 from dtrapp.network.models import Network
 
 
-def _boresight(azimuth_deg: float, downtilt_deg: float = 8.0) -> tuple[float, float, float]:
+def _boresight(azimuth_deg: float, downtilt_deg: float) -> tuple[float, float, float]:
     az, tilt = np.radians(azimuth_deg), np.radians(downtilt_deg)
     return (
         float(np.cos(az) * np.cos(tilt)),
@@ -28,10 +28,6 @@ def _boresight(azimuth_deg: float, downtilt_deg: float = 8.0) -> tuple[float, fl
 
 class SionnaPropagationEngine:
     """Computes per-link path gain (dB) for the network via ray tracing."""
-
-    # Antenna array geometry (shared by all transmitters / receivers).
-    NUM_BS_ROWS = 4
-    NUM_BS_COLS = 1
 
     def __init__(self, scene_xml, config: SimulationConfig) -> None:
         self.config = config
@@ -52,15 +48,25 @@ class SionnaPropagationEngine:
         self._Transmitter = Transmitter
         self._Receiver = Receiver
         self._solver = PathSolver()
-        # One fixed antenna array for all transmitters / receivers.
+        # Antenna arrays from config. Sionna RT applies one array to all
+        # transmitters and one to all receivers in a single solve.
         self._scene.tx_array = PlanarArray(
-            num_rows=self.NUM_BS_ROWS, num_cols=self.NUM_BS_COLS,
-            pattern="tr38901", polarization="V",
+            num_rows=config.bs_antenna_rows,
+            num_cols=config.bs_antenna_cols,
+            vertical_spacing=config.antenna_spacing,
+            horizontal_spacing=config.antenna_spacing,
+            pattern=config.bs_antenna_pattern,
+            polarization=config.bs_antenna_polarization,
         )
         self._scene.rx_array = PlanarArray(
-            num_rows=1, num_cols=1, pattern="iso", polarization="V"
+            num_rows=config.ue_antenna_rows,
+            num_cols=config.ue_antenna_cols,
+            vertical_spacing=config.antenna_spacing,
+            horizontal_spacing=config.antenna_spacing,
+            pattern=config.ue_antenna_pattern,
+            polarization=config.ue_antenna_polarization,
         )
-        self.num_bs_ant = self.NUM_BS_ROWS * self.NUM_BS_COLS
+        self.num_bs_ant = self._scene.tx_array.num_ant
 
     @property
     def carrier_frequency(self) -> float:
@@ -72,7 +78,7 @@ class SionnaPropagationEngine:
         self._clear()
         for cell in network.cells:
             px, py, pz = cell.position
-            dx, dy, dz = _boresight(cell.azimuth_deg)
+            dx, dy, dz = _boresight(cell.azimuth_deg, self.config.downtilt_deg)
             scene.add(
                 self._Transmitter(
                     name=cell.cell_id,
