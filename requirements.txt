@@ -1,0 +1,18 @@
+# Core numerical / data
+numpy>=1.24
+pyyaml>=6.0
+
+# Geometry: OSM fetch + polygon handling + mesh export
+requests>=2.31
+shapely>=2.0
+pyproj>=3.6
+
+# Output / visualization
+matplotlib>=3.7
+
+# Ray-tracing propagation engine (CPU-capable, GPU-ready).
+# Sionna RT v1 ships as a standalone package built on Mitsuba 3 + Dr.Jit.
+# It is an OPTIONAL heavy dependency: the geometry, network, and KPI layers
+# run without it. Install it to execute the full propagation pipeline:
+#   pip install sionna-rt
+# sionna-rt>=1.0
