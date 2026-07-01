@@ -1,0 +1,102 @@
+diff --git a/openair1/SIMULATION/TOOLS/random_channel.c b/openair1/SIMULATION/TOOLS/random_channel.c
+index daf9c4c..4371ed9 100644
+--- a/openair1/SIMULATION/TOOLS/random_channel.c
++++ b/openair1/SIMULATION/TOOLS/random_channel.c
+@@ -1749,6 +1749,84 @@ double accumulated_ch_power = 0;
+ int ch_power_count = 0;
+ #endif
+ 
++/* --- BEGIN Sionna RT channel injection (Digital-Twin-rApp) ---------------
++ * If the env var OAI_RT_TAPS points to a taps file, override this channel's
++ * sample-spaced impulse response (desc->ch) with the exact complex taps
++ * exported from Sionna RT. This is what makes OAI transmit over the
++ * ray-traced, site-specific channel instead of a statistical model.
++ *
++ * Taps file format (whitespace separated), one or more blocks:
++ *     <model_name> <ntaps> <path_loss_dB>
++ *     <delay_ns> <re> <im>          (ntaps lines)
++ *
++ * The taps are normalized to unit energy so the multipath *shape* is set by
++ * <re>,<im> while the overall link gain is set by <path_loss_dB> (<=0 => loss),
++ * which OAI applies in rxAddInput() as pow(10, path_loss_dB/20).
++ */
++static int oai_rt_inject_channel(channel_desc_t *desc)
++{
++  const char *path = getenv("OAI_RT_TAPS");
++  if (path == NULL || desc->model_name == NULL)
++    return 0;
++  FILE *f = fopen(path, "r");
++  if (f == NULL)
++    return 0;
++
++  char name[128];
++  int ntaps;
++  double pl_dB;
++  int injected = 0;
++  while (fscanf(f, "%127s %d %lf", name, &ntaps, &pl_dB) == 3) {
++    double dly[64], re[64], im[64], energy = 0.0;
++    if (ntaps > 64)
++      ntaps = 64;
++    for (int t = 0; t < ntaps; t++) {
++      if (fscanf(f, "%lf %lf %lf", &dly[t], &re[t], &im[t]) != 3) {
++        ntaps = t;
++        break;
++      }
++      energy += re[t] * re[t] + im[t] * im[t];
++    }
++    if (strcmp(name, desc->model_name) != 0)
++      continue; /* taps are for a different link */
++    const double norm = (energy > 0.0) ? 1.0 / sqrt(energy) : 1.0;
++    const int P = desc->nb_tx * desc->nb_rx;
++    /* sample index per tap; desc->sampling_rate is in samples/s */
++    int idx[64], maxidx = 0;
++    for (int t = 0; t < ntaps; t++) {
++      long smp = lround(dly[t] * 1e-9 * desc->sampling_rate);
++      if (smp < 0)
++        smp = 0;
++      if (smp > 254)
++        smp = 254; /* channel_length is uint8_t */
++      idx[t] = (int)smp;
++      if (idx[t] > maxidx)
++        maxidx = idx[t];
++    }
++    const int L = maxidx + 1;
++    /* (re)allocate the impulse response so it exactly fits the ray-traced taps */
++    for (int p = 0; p < P; p++) {
++      free(desc->ch[p]);
++      desc->ch[p] = (struct complexd *)calloc(L, sizeof(struct complexd));
++    }
++    desc->channel_length = L;
++    for (int t = 0; t < ntaps; t++)
++      for (int p = 0; p < P; p++) {
++        desc->ch[p][idx[t]].r += re[t] * norm;
++        desc->ch[p][idx[t]].i += im[t] * norm;
++      }
++    desc->path_loss_dB = pl_dB;
++    if (desc->first_run)
++      LOG_I(OCM, "[RT] injected %d taps into %s (path_loss_dB=%.2f, channel_length=%d, pairs=%d)\n",
++            ntaps, desc->model_name, pl_dB, L, P);
++    injected = 1;
++    break;
++  }
++  fclose(f);
++  return injected;
++}
++/* --- END Sionna RT channel injection ------------------------------------ */
++
+ int random_channel(channel_desc_t *desc, uint8_t abstraction_flag) {
+   double s;
+   int i,k,l,aarx,aatx;
+@@ -1757,6 +1835,12 @@ int random_channel(channel_desc_t *desc, uint8_t abstraction_flag) {
+   struct complexd phase, alpha, beta;
+   start_meas(&desc->random_channel);
+ 
++  if (oai_rt_inject_channel(desc)) {
++    stop_meas(&desc->random_channel);
++    desc->first_run = 0;
++    return 0;
++  }
++
+   // For AWGN and SAT_LEO_* channels, the received signal (Srx) is equal to transmitted signal (Stx) plus noise (N), i.e., Srx = Stx + N,
+   //  therefore, the channel matrix is the identity matrix.
+   if (desc->modelid == AWGN || desc->modelid == SAT_LEO_TRANS || desc->modelid == SAT_LEO_REGEN) {
