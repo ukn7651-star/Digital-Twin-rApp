@@ -1,0 +1,11 @@
+# OAI run artifacts (logs, captured KPIs)
+oai_run/
+*.log
+kpis.csv
+
+# OAI source/build lives outside the repo (installed via oai/setup_oai.sh)
+openairinterface5g/
+
+# Python
+__pycache__/
+*.pyc
