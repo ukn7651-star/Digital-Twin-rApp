@@ -121,22 +121,11 @@ def compute_link_level_kpis(
     se = (mod_order.to(coderate.dtype) * coderate).cpu().numpy().astype(float)
     se_goodput = se * (1.0 - bler_target)
 
-    # Scheduling: share each cell's airtime among its UEs.
-    #   equal          -> 1/K airtime (fairness); on a static snapshot this equals PF.
-    #   max_throughput -> airtime ~ SE (favours better channels; higher total, less fair).
-    mode = getattr(config, "scheduling", "equal")
+    # Proportional-fair scheduling on a static full-buffer snapshot == equal
+    # airtime among a cell's UEs.
     attached = np.bincount(serving, minlength=num_cells).astype(float)
     bandwidth_hz = np.array([c.bandwidth_hz for c in cells], dtype=float)
-
-    if mode == "max_throughput":
-        se_sum = np.zeros(num_cells, dtype=float)
-        np.add.at(se_sum, serving, se_goodput)
-        denom = se_sum[serving]
-        airtime = np.where(denom > 0, se_goodput / denom, 1.0 / attached[serving])
-    else:  # "equal"
-        airtime = 1.0 / attached[serving]
-
-    ue_mbps = airtime * bandwidth_hz[serving] * se_goodput / 1e6
+    ue_mbps = bandwidth_hz[serving] / attached[serving] * se_goodput / 1e6
 
     cell_mbps = np.zeros(num_cells, dtype=float)
     np.add.at(cell_mbps, serving, ue_mbps)

@@ -91,14 +91,6 @@ class SimulationConfig:
     num_subcarriers: int = 128  # representative sub-band for the post-eq SINR / MCS
     num_ofdm_symbols: int = 12  # OFDM symbols per slot in the SYS resource grid
 
-    # --- scheduling (stage 5): how each cell shares its airtime among its UEs ---
-    #   "equal"          -> equal airtime (fairness), rate_i = (B/K) * SE_i
-    #   "max_throughput" -> airtime weighted toward better-channel UEs (t_i ~ SE_i);
-    #                       higher total cell throughput, less fair (max-C/I flavour)
-    # On a static snapshot a real PF scheduler ~= "equal"; the meaningful contrast is
-    # fairness vs throughput-greedy, so these are the two comparable modes.
-    scheduling: str = "equal"
-
     # --- runner (stage 6) ---
     output_dir: str = "output"
 

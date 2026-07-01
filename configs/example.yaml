@@ -48,10 +48,5 @@ subcarrier_spacing_hz: 30.0e3
 num_subcarriers: 128       # representative sub-band for the post-eq SINR / MCS
 num_ofdm_symbols: 12
 
-# scheduling: how each cell shares airtime among its UEs
-#   equal          -> equal airtime (fairness)
-#   max_throughput -> airtime weighted toward better-channel UEs (higher total, less fair)
-scheduling: equal
-
 # runner
 output_dir: output
