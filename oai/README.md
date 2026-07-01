@@ -36,33 +36,50 @@ Steps 1-3 run OAI over its **own** channel model (a good first check). Step 4 is
 **RT->OAI bridge**: it turns our ray-traced CFR into channel taps; feeding those taps
 into the running rfsimulator is the remaining integration (see below).
 
-## The RT -> OAI bridge (working)
+## The RT -> OAI bridge (working, exact complex taps)
 
-`cfr_to_oai_channel.py` turns the exported CFR into an OAI channel and wires it into
-the running rfsimulator:
+OAI transmits over the **exact ray-traced channel**. `setup_oai.sh` applies a small
+patch (`patches/rt_channel_injection.patch`) that adds `oai_rt_inject_channel()` to
+OAI's `random_channel()`. When the env var `OAI_RT_TAPS` is set, that function
+overrides the rfsimulator's sample-spaced impulse response (`channelDesc->ch`) with
+the complex taps exported from Sionna RT, so the gNB<->UE link runs over the
+site-specific channel instead of a statistical model.
 
 ```bash
-# derive per-link path loss + delay spread from the RT channel and emit a
-# channelmod-enabled gNB conf (plus exact complex taps in oai_taps.npz):
+# CFR -> exact taps (oai_rt_taps.txt) + channel-enabled gNB/UE confs:
 python3 oai/cfr_to_oai_channel.py output/channel \
-    --base-conf ~/openairinterface5g/ci-scripts/conf_files/gnb.band78.106prb.rfsim.phytest-dora.conf \
-    --model-type TDL_C
+    --base-conf ~/openairinterface5g/ci-scripts/conf_files/gnb.band78.106prb.rfsim.phytest-dora.conf
 
-# run OAI over the RT-derived channel:
+# run OAI over the ray-traced channel:
+OAI_RT_TAPS=output/channel/oai_rt_taps.txt \
 CONF=output/channel/gnb_rtchan.conf bash oai/run_phytest.sh 30
 ```
 
-Verified: OAI's rfsimulator **loads and applies** the generated channel
-(`Model rfsimu_channel_enB0 ... allocated from config file` / `... rfsimulator
-activated`), i.e. the gNB↔UE link runs over a channel derived from our ray tracing.
+**Verified** in the gNB log:
 
-**Two levels of fidelity:**
-- **Now (config, no patch):** the link is coupled to the RT channel's **path loss +
-  RMS delay spread** via OAI's `channelmod` (`ploss_dB`, `ds_tdl`, e.g. `TDL_C`).
-- **Full fidelity (needs an OAI source patch):** injecting the **exact complex taps**
-  (`oai_taps.npz`) into `channelDesc->ch` — the OWDT / `NVlabs/sionna-rk` approach.
-  Absolute path loss also needs link-budget calibration against OAI's tx-power
-  settings (so `ploss_dB` maps to the intended SNR).
+```
+[OCM] [RT] injected 4 taps into rfsimu_channel_ue0 (path_loss_dB=0.00, channel_length=97, pairs=1)
+```
+
+i.e. the 4 dominant RT taps (and their delays -> sample positions) are loaded into
+the live channel and the link runs over them (MCS/BLER/HARQ flowing).
+
+### How the bridge builds the taps
+1. IFFT the CFR per link -> CIR; keep the strongest causal taps (delay + complex gain).
+2. Normalize the taps to **unit energy** so their shape carries the multipath; the
+   overall link gain is carried separately by `path_loss_dB`.
+3. Convert each tap delay (ns) to a sample index using the channel's sample rate; the
+   patch allocates `channel_length` to fit.
+
+### Calibration note (path loss vs. power control)
+`path_loss_dB` is applied by OAI in `rxAddInput()` as `pow(10, path_loss_dB/20)`.
+On the **uplink**, OAI's closed-loop power control regulates the received SNR to a
+target, so steady-state UL SNR does **not** expose `path_loss_dB` (this is correct 5G
+behavior, not a bug) — attenuation is compensated until the UE hits max power, then
+the link degrades. The multipath *shape* from RT still affects equalization / effective
+SINR. To observe path loss directly, use the **downlink** at the UE (no such loop):
+`cfr_to_oai_channel.py` also emits `ue_rtchan.conf`, and `run_phytest.sh` accepts
+`UE_CONF=...` to enable the DL channel model on the UE side (experimental in phy-test).
 
 ## Files & KPIs
 

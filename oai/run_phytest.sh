@@ -23,6 +23,13 @@ if [ ! -x "$BUILD/nr-softmodem" ]; then
   exit 1
 fi
 
+# If OAI_RT_TAPS is set, the patched random_channel() injects those exact
+# ray-traced taps into the rfsimulator channel. Export it to the OAI processes.
+if [ -n "${OAI_RT_TAPS:-}" ]; then
+  export OAI_RT_TAPS
+  echo "[run] injecting ray-traced channel from $OAI_RT_TAPS"
+fi
+
 mkdir -p "$OUT_DIR"
 cd "$BUILD"
 rm -f reconfig.raw rbconfig.raw
@@ -41,7 +48,12 @@ if [ ! -f reconfig.raw ]; then
 fi
 
 echo "[UE] starting (connect to 127.0.0.1)..."
+# Optional UE_CONF enables the DL channel model on the UE (client) side so the
+# ray-traced channel + path loss are visible in the UE's DL measurements.
+UE_CONF_ARG=()
+[ -n "${UE_CONF:-}" ] && UE_CONF_ARG=(-O "$UE_CONF")
 ./nr-uesoftmodem --rfsim --phy-test "--rfsimulator.[0].serveraddr" 127.0.0.1 \
+    "${UE_CONF_ARG[@]}" \
     --reconfig-file "$BUILD/reconfig.raw" --rbconfig-file "$BUILD/rbconfig.raw" \
     > "$OUT_DIR/ue.log" 2>&1 &
 UE=$!

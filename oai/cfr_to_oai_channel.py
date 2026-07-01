@@ -9,10 +9,17 @@ the form OAI's channel emulator uses.
 Pipeline: CFR (frequency) --IFFT over subcarriers--> CIR (time) --keep strongest
 N taps--> per-link taps.
 
-STATUS: this produces the taps and documents the mapping. Feeding them into the
-running rfsimulator requires OAI's external-channel / channel-emulator interface
-(the "OAI meets Sionna RT" / OWDT branch; see NVlabs/sionna-rk). That plumbing is
-the remaining integration step.
+It writes three things into the channel dir:
+  * oai_taps.npz        - all links, for inspection / re-use.
+  * oai_rt_taps.txt     - the chosen link's exact complex taps, in the text
+                          format read by the OAI patch (openair1/.../random_channel.c
+                          oai_rt_inject_channel), which overrides desc->ch so the
+                          rfsimulator transmits over the ray-traced channel.
+  * gnb_rtchan.conf     - a gNB conf with the rfsim channel model enabled.
+
+Run:  OAI_RT_TAPS=output/channel/oai_rt_taps.txt \
+      CONF=output/channel/gnb_rtchan.conf bash oai/run_phytest.sh 30
+(run_phytest.sh exports OAI_RT_TAPS for you.)
 
 Usage:  python3 oai/cfr_to_oai_channel.py <output/channel dir> [--taps 4]
 """
@@ -35,7 +42,11 @@ def cfr_to_taps(cfr: np.ndarray, num_taps: int = 4):
     """
     h_freq = cfr.mean(axis=(1, 3, 4))                 # [num_ues, num_cells, num_sc]
     cir = np.fft.ifft(h_freq, axis=-1)                # time-domain impulse response
-    order = np.argsort(np.abs(cir), axis=-1)[..., ::-1][..., :num_taps]
+    # Only causal, short delays are physical taps; the upper half of the IFFT is the
+    # negative-delay (wrap-around) alias, so mask it out before picking the strongest.
+    mag = np.abs(cir).copy()
+    mag[..., mag.shape[-1] // 2:] = -1.0
+    order = np.argsort(mag, axis=-1)[..., ::-1][..., :num_taps]
     return order, np.take_along_axis(cir, order, axis=-1)
 
 
@@ -58,11 +69,11 @@ def rms_delay_spread_s(cfr: np.ndarray, scs_hz: float) -> np.ndarray:
 
 
 def _channelmod_block(ploss_db: float, ds_s: float, model_type: str) -> str:
-    ds_ns = ds_s * 1e9
+    ds_us = ds_s * 1e6  # OAI expects the TDL delay-spread scaling in microseconds
     def one(name):
         return (f"    {{ model_name = \"{name}\"; type = \"{model_type}\"; "
                 f"ploss_dB = {ploss_db:.2f}; noise_power_dB = -10; "
-                f"forgetfact = 0; offset = 0; ds_tdl = {ds_ns:.4f}; }}")
+                f"forgetfact = 0; offset = 0; ds_tdl = {ds_us:.6f}; }}")
     return (
         "channelmod = {\n"
         "  max_chan = 10;\n"
@@ -73,6 +84,39 @@ def _channelmod_block(ploss_db: float, ds_s: float, model_type: str) -> str:
         "  );\n"
         "};\n"
     )
+
+
+def write_taps_file(out_txt: Path, delays_idx, gains, scs_hz: float, num_sc: int,
+                    path_loss_db: float, model_names) -> int:
+    """Write the exact complex taps for one link in the OAI-patch text format.
+
+    delays_idx : IFFT-bin index per tap (0..num_sc-1) -> converted to nanoseconds.
+    gains      : complex gain per tap.
+    A block is written for each model name (DL + UL) so both directions use the
+    ray-traced channel.
+    """
+    ntaps = len(gains)
+    lines = []
+    for name in model_names:
+        lines.append(f"{name} {ntaps} {path_loss_db:.4f}")
+        for k in range(ntaps):
+            delay_ns = float(delays_idx[k]) / (scs_hz * num_sc) * 1e9
+            lines.append(f"{delay_ns:.6f} {gains[k].real:.9e} {gains[k].imag:.9e}")
+    out_txt.write_text("\n".join(lines) + "\n")
+    return ntaps
+
+
+def write_ue_conf(out_conf: Path, ds_s: float, model_type: str) -> None:
+    """Minimal UE conf that enables the rfsim DL channel model (client side).
+
+    The UE has no UL power control loop on its receive path, so the DL SNR it
+    measures does track the injected path loss - the clean calibration observable.
+    """
+    text = (
+        'rfsimulator = { serveraddr = "127.0.0.1"; options = ("chanmod"); };\n'
+        + _channelmod_block(0.0, ds_s, model_type) + "\n"
+    )
+    out_conf.write_text(text)
 
 
 def write_gnb_conf(base_conf: Path, out_conf: Path, ploss_db: float, ds_s: float,
@@ -95,8 +139,11 @@ def main() -> int:
                     help="base gNB conf to derive an rfsim channel conf from")
     ap.add_argument("--ploss-db", type=float, default=None,
                     help="override the DL path loss (dB) written into the conf")
-    ap.add_argument("--model-type", default="TDL_C",
-                    help="OAI channel model type (AWGN, TDL_C, ...)")
+    ap.add_argument("--model-type", default="AWGN",
+                    help="OAI base channel model (AWGN is safe; the RT patch replaces "
+                         "the impulse response and sets channel_length itself)")
+    ap.add_argument("--ue", type=int, default=None,
+                    help="UE index whose channel to inject (default: strongest link)")
     args = ap.parse_args()
 
     d = Path(args.channel_dir)
@@ -114,25 +161,38 @@ def main() -> int:
     pl = link_pathloss_db(cfr)                        # [num_ues, num_cells]
     ds = rms_delay_spread_s(cfr, scs)
     serving = np.argmin(pl, axis=1)
-    u = int(np.argmin(pl[np.arange(len(serving)), serving]))  # a representative UE
+    u = args.ue if args.ue is not None else int(np.argmin(pl[np.arange(len(serving)), serving]))
     s = int(serving[u])
-    pl_rel = float(pl[u, s] - pl.min())               # relative to the best link
+    num_sc = cfr.shape[-1]
+    # Calibration: unit-energy taps carry the multipath shape; path_loss_dB carries
+    # the link gain. Map RT loss relative to the best link -> attenuation (<=0 dB),
+    # so the best UE keeps ~baseline SNR and weaker UEs drop accordingly.
+    pl_rel = float(pl[u, s] - pl.min())
+    inj_gain_db = args.ploss_db if args.ploss_db is not None else -round(pl_rel, 2)
     print(f"CFR {cfr.shape} -> taps {gains.shape} -> {d/'oai_taps.npz'}")
-    print(f"representative link: ue{u} -> cell{s}  path_loss={pl[u,s]:.1f} dB "
-          f"(rel {pl_rel:.1f} dB)  delay_spread={ds[u,s]*1e9:.1f} ns")
+    print(f"injecting link: ue{u} -> cell{s}  path_loss={pl[u,s]:.1f} dB "
+          f"(rel {pl_rel:.1f} dB)  delay_spread={ds[u,s]*1e9:.1f} ns  "
+          f"-> path_loss_dB(gain)={inj_gain_db:.2f}")
+
+    # Exact complex taps for OAI's random_channel() injection hook (both directions).
+    taps_txt = d / "oai_rt_taps.txt"
+    n = write_taps_file(taps_txt, delays[u, s], gains[u, s], scs, num_sc, inj_gain_db,
+                        ["rfsimu_channel_enB0", "rfsimu_channel_ue0"])
+    print(f"wrote {n} exact taps -> {taps_txt}")
 
     if args.base_conf:
-        ploss = args.ploss_db if args.ploss_db is not None else round(pl_rel, 2)
         out_conf = d / "gnb_rtchan.conf"
-        write_gnb_conf(Path(args.base_conf), out_conf, ploss, float(ds[u, s]), args.model_type)
-        print(f"wrote OAI gNB conf (chanmod enabled, ploss={ploss} dB, "
-              f"type={args.model_type}) -> {out_conf}")
-        print(f"run it:  CONF={out_conf} bash oai/run_phytest.sh 30")
+        write_gnb_conf(Path(args.base_conf), out_conf, 0.0, float(ds[u, s]), args.model_type)
+        ue_conf = d / "ue_rtchan.conf"
+        write_ue_conf(ue_conf, float(ds[u, s]), args.model_type)
+        print(f"wrote OAI gNB conf (chanmod enabled, type={args.model_type}) -> {out_conf}")
+        print(f"wrote OAI UE conf  (DL chanmod) -> {ue_conf}")
+        print(f"run it:  OAI_RT_TAPS={taps_txt} CONF={out_conf} UE_CONF={ue_conf} "
+              f"bash oai/run_phytest.sh 30")
 
-    print("\nNote: the channelmod conf couples OAI's link to the RT path loss + delay "
-          "spread. Exact complex-tap injection (using oai_taps.npz) needs an OAI source "
-          "patch (OWDT / NVlabs/sionna-rk); absolute path loss also needs link-budget "
-          "calibration against OAI's tx-power settings.")
+    print("\nThe OAI patch (oai_rt_inject_channel in random_channel.c) overrides the "
+          "rfsimulator channel with these exact complex taps, so OAI transmits over the "
+          "ray-traced channel. path_loss_dB is the calibrated link gain.")
     return 0
 
 

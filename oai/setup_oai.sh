@@ -16,14 +16,25 @@ echo 'iperf3 iperf3/start_daemon boolean false' | sudo debconf-set-selections ||
 sudo -E apt-get update -qq
 sudo -E apt-get install -y iperf3 ninja-build g++ libstdc++-14-dev
 
-echo "[2/4] Clone OAI (shallow)..."
+echo "[2/5] Clone OAI (shallow)..."
 [ -d "$OAI_DIR" ] || git clone --depth 1 https://gitlab.eurecom.fr/oai/openairinterface5g.git "$OAI_DIR"
 
-echo "[3/4] Install OAI build dependencies..."
+echo "[3/5] Apply the Sionna RT channel-injection patch..."
+# Adds oai_rt_inject_channel() so the rfsimulator transmits over the ray-traced
+# channel (env OAI_RT_TAPS). Idempotent: skip if already applied.
+PATCH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/patches/rt_channel_injection.patch"
+cd "$OAI_DIR"
+if ! grep -q "oai_rt_inject_channel" openair1/SIMULATION/TOOLS/random_channel.c; then
+  git apply "$PATCH" && echo "  patch applied."
+else
+  echo "  patch already present, skipping."
+fi
+
+echo "[4/5] Install OAI build dependencies..."
 cd "$OAI_DIR/cmake_targets"
 sudo -E ./build_oai -I
 
-echo "[4/4] Build gNB + UE with GCC (clang crashes on OAI's MMX intrinsics)..."
+echo "[5/5] Build gNB + UE with GCC (clang crashes on OAI's MMX intrinsics)..."
 CC=gcc CXX=g++ ./build_oai --gNB --nrUE --ninja
 
 echo
