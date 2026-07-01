@@ -111,3 +111,24 @@ python3 -m pytest -q
 The pure-Python stages (geometry, network) run without Sionna. The Sionna RT
 integration test and the link-level KPI tests build a tiny scene from canned OSM
 and are skipped automatically when Sionna is not installed.
+
+## Limitations (read this)
+
+This engine keeps the full multi-cell, multi-UE network, but makes deliberate
+simplifications:
+
+1. **The throughput stage is a model.** Sionna SYS maps SINR → MCS → rate with a
+   PHY *abstraction* (`PHYAbstraction` + link-adaptation), not a running protocol
+   stack. It's realistic and standards-based, but it is not real LDPC/HARQ/scheduler
+   behaviour. (The sibling RT+OAI branch replaces this stage with real OAI data.)
+2. **Static snapshot — no mobility.** One instant; no UE movement, Doppler, or fast
+   fading. Consequently **scheduling reduces to equal airtime**: on a static
+   full-buffer snapshot a proportional-fair scheduler is provably equal-airtime, so
+   there is a single scheduling model and no meaningful "real scheduler" alternative
+   without adding mobility.
+3. **Inter-cell interference is modelled as noise.** Each UE's SINR folds the other
+   cells' power into the effective noise (the standard interference-as-noise model);
+   cells' waveforms are not physically combined.
+4. **Beamforming** is the RZF precoding array gain, not a full MIMO multi-layer chain.
+5. **Random network data.** Cells/UEs/traffic are seeded-random stand-ins until real
+   network data is integrated (the data layer is swappable by design).
