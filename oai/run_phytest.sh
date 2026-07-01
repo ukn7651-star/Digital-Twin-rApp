@@ -13,7 +13,9 @@ OAI_DIR="${OAI_DIR:-$HOME/openairinterface5g}"
 DURATION="${1:-30}"
 OUT_DIR="${OUT_DIR:-$(pwd)/oai_run}"
 BUILD="$OAI_DIR/cmake_targets/ran_build/build"
-CONF="$OAI_DIR/ci-scripts/conf_files/gnb.band78.106prb.rfsim.phytest-dora.conf"
+# Default gNB config; override with CONF=... (e.g. the RT-channel conf produced by
+# cfr_to_oai_channel.py) to run OAI over the ray-traced channel.
+CONF="${CONF:-$OAI_DIR/ci-scripts/conf_files/gnb.band78.106prb.rfsim.phytest-dora.conf}"
 
 if [ ! -x "$BUILD/nr-softmodem" ]; then
   echo "nr-softmodem not found in $BUILD"

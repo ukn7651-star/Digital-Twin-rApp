@@ -36,14 +36,33 @@ Steps 1-3 run OAI over its **own** channel model (a good first check). Step 4 is
 **RT->OAI bridge**: it turns our ray-traced CFR into channel taps; feeding those taps
 into the running rfsimulator is the remaining integration (see below).
 
-## The RT -> OAI bridge (status)
+## The RT -> OAI bridge (working)
 
-`cfr_to_oai_channel.py` converts the exported CFR (frequency domain) into a few
-time-domain **taps** (delay + complex gain) per cell->UE link — the form OAI's
-channel emulator uses. **Producing the taps works.** Feeding them into the live
-rfsimulator requires OAI's external-channel / channel-emulator interface (the
-"OAI meets Sionna RT" / OWDT branch; see `NVlabs/sionna-rk`). That OAI-side
-plumbing is the one piece still to wire up for a fully site-specific run.
+`cfr_to_oai_channel.py` turns the exported CFR into an OAI channel and wires it into
+the running rfsimulator:
+
+```bash
+# derive per-link path loss + delay spread from the RT channel and emit a
+# channelmod-enabled gNB conf (plus exact complex taps in oai_taps.npz):
+python3 oai/cfr_to_oai_channel.py output/channel \
+    --base-conf ~/openairinterface5g/ci-scripts/conf_files/gnb.band78.106prb.rfsim.phytest-dora.conf \
+    --model-type TDL_C
+
+# run OAI over the RT-derived channel:
+CONF=output/channel/gnb_rtchan.conf bash oai/run_phytest.sh 30
+```
+
+Verified: OAI's rfsimulator **loads and applies** the generated channel
+(`Model rfsimu_channel_enB0 ... allocated from config file` / `... rfsimulator
+activated`), i.e. the gNB↔UE link runs over a channel derived from our ray tracing.
+
+**Two levels of fidelity:**
+- **Now (config, no patch):** the link is coupled to the RT channel's **path loss +
+  RMS delay spread** via OAI's `channelmod` (`ploss_dB`, `ds_tdl`, e.g. `TDL_C`).
+- **Full fidelity (needs an OAI source patch):** injecting the **exact complex taps**
+  (`oai_taps.npz`) into `channelDesc->ch` — the OWDT / `NVlabs/sionna-rk` approach.
+  Absolute path loss also needs link-budget calibration against OAI's tx-power
+  settings (so `ploss_dB` maps to the intended SNR).
 
 ## Files & KPIs
 
