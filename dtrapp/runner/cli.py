@@ -2,7 +2,9 @@
 
     dtrapp configs/example.yaml
 
-Runs the full ray-traced pipeline described by a YAML scenario file.
+Builds the OSM scene, generates the network, ray-traces the channel with Sionna
+RT, and exports it (output/channel/) for OpenAirInterface. Throughput/KPIs are
+then produced by the OAI stack (see oai/).
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from dtrapp.config import SimulationConfig
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="dtrapp",
-        description="Offline ray-traced downlink throughput engine (Digital Twin rApp).",
+        description="Sionna RT channel generator for the Digital Twin rApp (feeds OAI).",
     )
     parser.add_argument("config", help="Path to a YAML scenario config.")
     args = parser.parse_args(argv)
@@ -25,8 +27,9 @@ def main(argv: list[str] | None = None) -> int:
 
     from dtrapp.runner.pipeline import run_simulation
 
-    result = run_simulation(config)
-    print(f"done: {len(result.ues)} UEs, {len(result.cells)} cells.")
+    network, cfr = run_simulation(config)
+    print(f"done: {len(network.cells)} cells, {len(network.ues)} UEs, "
+          f"CFR {tuple(cfr.shape)} -> {config.output_dir}/channel/")
     return 0
 
 

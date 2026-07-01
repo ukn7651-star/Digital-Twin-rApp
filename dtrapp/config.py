@@ -83,13 +83,14 @@ class SimulationConfig:
     antenna_spacing: float = 0.5  # element spacing, multiples of wavelength
     downtilt_deg: float = 8.0  # BS sector electrical downtilt
 
-    # --- kpi (stages 4-5): Sionna SYS link-level chain ---
+    # --- channel / OFDM resource grid (used by the Sionna RT CFR export) ---
+    subcarrier_spacing_hz: float = 30.0e3  # OFDM numerology for the RT resource grid
+    num_subcarriers: int = 128  # subcarriers in the exported channel frequency response
+    num_ofdm_symbols: int = 12  # OFDM symbols per slot in the RT resource grid
+    # These inform the OAI link layer (not used by the RT channel export itself):
     temperature_k: float = 290.0
-    bler_target: float = 0.1  # link-adaptation BLER target
+    bler_target: float = 0.1  # OAI link-adaptation BLER target
     mcs_table_index: int = 1  # 5G-NR MCS table (1: up to 64QAM, 2: up to 256QAM)
-    subcarrier_spacing_hz: float = 30.0e3  # OFDM numerology for the SYS resource grid
-    num_subcarriers: int = 128  # representative sub-band for the post-eq SINR / MCS
-    num_ofdm_symbols: int = 12  # OFDM symbols per slot in the SYS resource grid
 
     # --- runner (stage 6) ---
     output_dir: str = "output"

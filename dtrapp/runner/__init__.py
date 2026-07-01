@@ -1,6 +1,6 @@
-"""Stage 6 - runner: pipeline orchestration, output writer, and CLI entry point."""
+"""Stage 6 - runner: pipeline orchestration, channel export, and CLI entry point."""
 
+from dtrapp.runner.export import export_channel
 from dtrapp.runner.pipeline import run_simulation
-from dtrapp.runner.output import write_outputs
 
-__all__ = ["run_simulation", "write_outputs"]
+__all__ = ["run_simulation", "export_channel"]
