@@ -92,6 +92,14 @@ class SimulationConfig:
     bler_target: float = 0.1  # OAI link-adaptation BLER target
     mcs_table_index: int = 1  # 5G-NR MCS table (1: up to 64QAM, 2: up to 256QAM)
 
+    # --- scheduling (stage 5): how each cell shares its airtime among its UEs ---
+    #   "equal"          -> equal airtime (fairness), rate_i = (B/K) * SE_i
+    #   "max_throughput" -> airtime weighted toward better-channel UEs (t_i ~ SE_i);
+    #                       higher total cell throughput, less fair (max-C/I flavour)
+    # On a static snapshot a real PF/OAI scheduler ~= "equal"; the meaningful contrast
+    # is fairness vs throughput-greedy, so these are the two comparable modes.
+    scheduling: str = "equal"
+
     # --- runner (stage 6) ---
     output_dir: str = "output"
 
