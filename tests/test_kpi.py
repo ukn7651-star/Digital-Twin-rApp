@@ -12,11 +12,10 @@ from dtrapp.kpi.link_curve import LinkCurve
 from dtrapp.network.models import Cell, Network, UE
 
 
-def _cfg(scheduling="equal"):
+def _cfg():
     return SimulationConfig(
         bbox=BoundingBox(52.499, 13.399, 52.501, 13.401),
         bs_antenna_rows=4, bs_antenna_cols=1, bler_target=0.1,
-        scheduling=scheduling,
     )
 
 
@@ -62,30 +61,6 @@ def test_association_and_scheduling():
         assert np.isfinite(u.sinr_db)
         assert u.throughput_mbps > 0.0
         assert u.mcs >= 0
-
-
-def test_scheduling_modes_differ():
-    # Two UEs on one cell with different channel quality.
-    cells = [Cell("c0", (0.0, 0.0, 25.0), 0.0, 46.0, 3.5e9, 20e6)]
-    ues = [UE("u0", (10.0, 0.0, 1.5), 50.0, 7.0),
-           UE("u1", (60.0, 0.0, 1.5), 50.0, 7.0)]
-    net = Network(cells, ues)
-    # Amplitudes (engine squares them): |H|^2 ~ 2.5e-13 -> ~20 dB, ~5e-15 -> ~3 dB,
-    # so the two UEs land at different points on the curve (not saturated).
-    cfr = _synthetic_cfr([[5.0e-7], [7.07e-8]])
-
-    eq = compute_kpis(net, cfr, _cfg("equal"))
-    mt = compute_kpis(net, cfr, _cfg("max_throughput"))
-
-    eq_tp = {u.ue_id: u.throughput_mbps for u in eq.ues}
-    mt_tp = {u.ue_id: u.throughput_mbps for u in mt.ues}
-
-    # max_throughput favours the stronger UE and yields >= total cell throughput.
-    assert mt_tp["u0"] > eq_tp["u0"]
-    assert mt_tp["u1"] < eq_tp["u1"]
-    eq_cell = eq.cells[0].throughput_mbps
-    mt_cell = mt.cells[0].throughput_mbps
-    assert mt_cell >= eq_cell - 1e-9
 
 
 def test_link_curve_monotone_and_bounds():

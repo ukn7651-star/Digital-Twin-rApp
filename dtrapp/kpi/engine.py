@@ -32,26 +32,6 @@ def _to_numpy(cfr):
     return cfr.detach().cpu().numpy() if hasattr(cfr, "detach") else np.asarray(cfr)
 
 
-def _airtime_shares(se_goodput, mode: str):
-    """Airtime fraction per UE on one cell (sums to 1), given each UE's goodput SE.
-
-    equal          -> 1/K each (fairness).
-    max_throughput -> proportional to SE (favours better channels; max-C/I flavour).
-    On a static snapshot, PF / a real MAC scheduler ~= equal, so those two policies
-    are the meaningful contrast.
-    """
-    se = np.asarray(se_goodput, dtype=float)
-    k = len(se)
-    if k == 0:
-        return se
-    if mode == "max_throughput":
-        total = se.sum()
-        if total > 0:
-            return se / total
-    # default / "equal"
-    return np.full(k, 1.0 / k)
-
-
 def compute_kpis(
     network: Network,
     cfr,
@@ -80,10 +60,10 @@ def compute_kpis(
     rx_watt = mean_h2 * tx_watt[None, :]                        # received power [nU, nC]
     serving = rx_watt.argmax(axis=1)
 
-    mode = getattr(config, "scheduling", "equal")
+    result = KpiResult()
+    attached = np.bincount(serving, minlength=num_cells).astype(int)
+    cell_mbps = np.zeros(num_cells, dtype=float)
 
-    # Pass 1: per-UE SINR (with inter-cell interference) -> (MCS, goodput SE).
-    serv, bw, sinr_db_arr, mcs_arr, se_gp = [], [], [], [], []
     for u, ue in enumerate(ues):
         s = int(serving[u])
         bandwidth = float(cells[s].bandwidth_hz)
@@ -94,40 +74,24 @@ def compute_kpis(
         interference = float(rx_watt[u].sum() - rx_watt[u, s])  # other cells, no beam gain
         sinr_lin = signal / max(interference + noise, 1e-30)
         sinr_db = 10.0 * np.log10(max(sinr_lin, 1e-12))
+
         mcs, se = curve.map_sinr(sinr_db)
+        se_goodput = se * (1.0 - bler_target)
+        ue_mbps = bandwidth / max(attached[s], 1) * se_goodput / 1e6
+        cell_mbps[s] += ue_mbps
 
-        serv.append(s); bw.append(bandwidth); sinr_db_arr.append(sinr_db)
-        mcs_arr.append(int(mcs)); se_gp.append(se * (1.0 - bler_target))
-
-    serv = np.asarray(serv)
-
-    # Pass 2: per-cell airtime allocation (scheduling mode) -> per-UE throughput.
-    ue_mbps = np.zeros(len(ues), dtype=float)
-    for c in range(num_cells):
-        members = np.where(serv == c)[0]
-        if members.size == 0:
-            continue
-        shares = _airtime_shares([se_gp[u] for u in members], mode)
-        for u, t in zip(members, shares):
-            ue_mbps[u] = t * bw[u] * se_gp[u] / 1e6
-
-    attached = np.bincount(serv, minlength=num_cells).astype(int)
-    cell_mbps = np.zeros(num_cells, dtype=float)
-    result = KpiResult()
-    for u, ue in enumerate(ues):
-        s = int(serv[u])
-        cell_mbps[s] += ue_mbps[u]
         result.ues.append(
             UEKpi(
                 ue_id=ue.ue_id,
                 serving_cell=cells[s].cell_id,
                 x=ue.position[0],
                 y=ue.position[1],
-                sinr_db=float(sinr_db_arr[u]),
-                mcs=int(mcs_arr[u]),
-                throughput_mbps=float(ue_mbps[u]),
+                sinr_db=float(sinr_db),
+                mcs=int(mcs),
+                throughput_mbps=float(ue_mbps),
             )
         )
+
     for c, cell in enumerate(cells):
         result.cells.append(
             CellKpi(
