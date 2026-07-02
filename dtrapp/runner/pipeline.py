@@ -21,7 +21,7 @@ from dtrapp.config import SimulationConfig
 from dtrapp.geometry import build_scene
 from dtrapp.kpi import compute_kpis
 from dtrapp.kpi.results import KpiResult
-from dtrapp.network import NetworkDataSource, RandomNetworkSource
+from dtrapp.network import CsvNetworkSource, NetworkDataSource, RandomNetworkSource
 from dtrapp.propagation import SionnaPropagationEngine
 from dtrapp.runner.export import export_channel
 from dtrapp.runner.output import write_outputs
@@ -44,7 +44,10 @@ def run_simulation(
 
     print("[2/4] Generating network (cells + UEs) ...")
     if network_source is None:
-        network_source = RandomNetworkSource(config, artifacts.extent_m)
+        if config.cells_csv or config.ues_csv:
+            network_source = CsvNetworkSource(config, artifacts.extent_m)
+        else:
+            network_source = RandomNetworkSource(config, artifacts.extent_m)
     network = network_source.generate()
     print(f"      {len(network.cells)} cells, {len(network.ues)} UEs")
 

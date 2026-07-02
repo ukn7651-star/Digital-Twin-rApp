@@ -63,21 +63,28 @@ simplifications. Be explicit about them when interpreting results:
    "real scheduler" mode, because it would be identical here and would require
    full-stack OAI + mobility.
 2. **Inter-cell interference is modelled as noise.** Each UE's SINR uses
-   `serving signal / (Σ other cells' power + noise)` — the standard "interference-as-
-   noise" model (same as Sionna SYS). We do **not** have multiple cells physically
-   transmit and combine their waveforms in the loop; true multi-cell-in-the-loop
-   needs a GPU/FPGA channel emulator (NVIDIA Aerial / Colosseum), out of scope here.
+   `serving signal / (load · Σ other cells' power + noise)` — the standard
+   "interference-as-noise" model (what a real UE receiver experiences, and what
+   every system-level tool does). `neighbor_load` (0..1) scales neighbour activity;
+   the default 1.0 is the full-buffer worst case. We do **not** have multiple cells
+   physically transmit and combine their waveforms in the loop; true
+   multi-cell-in-the-loop needs a GPU/FPGA channel emulator (NVIDIA Aerial /
+   Colosseum), out of scope here.
 3. **OAI is single-cell.** OAI (both the measured curve and the in-the-loop link)
    provides the **per-link** throughput realism; it does not compute inter-cell
    interference or cross-cell scheduling. Those stay on our (analytical) side.
-4. **Default throughput mapping is a scalar SINR→MCS curve.** It's OAI-measured, but
-   because it's driven by a single SINR value it is numerically close to Sionna SYS.
-   The richer, exact-channel-per-link OAI throughput (real HARQ/decoding, iperf3
+4. **The throughput mapping is per-RE SINR + EESM through the OAI curve.** SINR is
+   computed per resource element with channel-dependent MRT/MRC beamforming
+   (`sigma_max(H_k)^2`, coherent — not a flat antenna-count bonus), then compressed
+   to an AWGN-equivalent effective SINR with EESM (per-modulation betas,
+   `eesm_beta_scale` as the calibration knob) before the OAI-measured MCS lookup —
+   so frequency selectivity from the ray tracer survives into the throughput. The
+   richer, exact-channel-per-link OAI throughput (real HARQ/decoding, iperf3
    goodput) is prototyped (exact-tap injection) but not yet the default output.
-5. **Beamforming is an array-gain approximation** (`10·log10(N_bs_ant)` on the
-   serving link), not full MIMO precoding.
-6. **Exact-channel injection caveats:** same taps applied to all antenna pairs
+5. **Exact-channel injection caveats:** same taps applied to all antenna pairs
    (MIMO approximation), one link per run, and UL SNR is regulated by OAI power
    control so it doesn't expose the injected path loss (see `oai/README.md`).
-7. **Random network data.** Cells/UEs/traffic are seeded-random stand-ins until real
-   network data is integrated (the data layer is swappable by design).
+6. **Network data is swappable; random by default.** Set `cells_csv` / `ues_csv`
+   (WGS84 lat/lon rows, OpenCelliD-style; auto-sectorized unless `azimuth_deg` is
+   given) to run a real site; otherwise cells/UEs/traffic are seeded-random
+   stand-ins.

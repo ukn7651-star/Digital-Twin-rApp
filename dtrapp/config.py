@@ -67,6 +67,11 @@ class SimulationConfig:
     num_ues: int = 30
     ue_height_m: float = 1.5
     ue_noise_figure_db: float = 7.0
+    # Optional real-site data (CSV with lat/lon; see dtrapp/network/csv_source.py).
+    # When ``cells_csv`` is set it replaces the random cells; ``ues_csv`` likewise
+    # replaces the random UEs (leave empty to keep random UEs over real cells).
+    cells_csv: str = ""
+    ues_csv: str = ""
 
     # --- propagation (stage 3): Sionna RT ---
     max_depth: int = 3  # ray interaction depth (reflections)
@@ -91,6 +96,11 @@ class SimulationConfig:
     temperature_k: float = 290.0
     bler_target: float = 0.1  # OAI link-adaptation BLER target
     mcs_table_index: int = 1  # 5G-NR MCS table (1: up to 64QAM, 2: up to 256QAM)
+    # --- KPI engine fidelity knobs ---
+    neighbor_load: float = 1.0  # fraction of time/power neighbour cells transmit
+    #                             (1.0 = full-buffer worst case interference)
+    eesm_beta_scale: float = 1.0  # calibration knob for the EESM betas (fit
+    #                               against OAI in-the-loop ground truth)
 
     # --- runner (stage 6) ---
     output_dir: str = "output"

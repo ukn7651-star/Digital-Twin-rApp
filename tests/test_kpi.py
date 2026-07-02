@@ -63,6 +63,58 @@ def test_association_and_scheduling():
         assert u.mcs >= 0
 
 
+def test_frequency_selectivity_lowers_effective_sinr():
+    """EESM: a selective channel must not out-perform a flat one of equal mean power."""
+    cells = [Cell("c0", (0.0, 0.0, 25.0), 0.0, 46.0, 3.5e9, 20e6)]
+    ues = [UE("u0", (10.0, 0.0, 1.5), 50.0, 7.0)]
+    net = Network(cells, ues)
+
+    flat = _synthetic_cfr([[1e-4]])
+    # Same mean |H|^2, but all energy in half the subcarriers (deep fades in the rest).
+    selective = flat.copy()
+    selective[..., ::2] = np.sqrt(2.0) * 1e-4
+    selective[..., 1::2] = 0.0
+    assert np.isclose((np.abs(flat) ** 2).mean(), (np.abs(selective) ** 2).mean())
+
+    r_flat = compute_kpis(net, flat, _cfg())
+    r_sel = compute_kpis(net, selective, _cfg())
+    assert r_sel.ues[0].sinr_db < r_flat.ues[0].sinr_db
+    assert r_sel.ues[0].throughput_mbps <= r_flat.ues[0].throughput_mbps
+
+
+def test_neighbor_load_scales_interference():
+    """load=0 removes inter-cell interference -> SINR and throughput can only rise."""
+    cells = [
+        Cell("c0", (0.0, 0.0, 25.0), 0.0, 46.0, 3.5e9, 20e6),
+        Cell("c1", (100.0, 0.0, 25.0), 0.0, 46.0, 3.5e9, 20e6),
+    ]
+    ues = [UE("u0", (10.0, 0.0, 1.5), 50.0, 7.0)]
+    net = Network(cells, ues)
+    cfr = _synthetic_cfr([[1e-4, 5e-5]])  # strong interferer
+
+    cfg_full, cfg_idle = _cfg(), _cfg()
+    cfg_idle.neighbor_load = 0.0
+    r_full = compute_kpis(net, cfr, cfg_full)
+    r_idle = compute_kpis(net, cfr, cfg_idle)
+    assert r_idle.ues[0].sinr_db > r_full.ues[0].sinr_db
+    assert r_idle.ues[0].throughput_mbps >= r_full.ues[0].throughput_mbps
+
+
+def test_multi_rx_antenna_svd_path():
+    """The sigma_max (SVD) beamforming path runs and beats a single-antenna UE."""
+    cells = [Cell("c0", (0.0, 0.0, 25.0), 0.0, 46.0, 3.5e9, 20e6)]
+    ues = [UE("u0", (10.0, 0.0, 1.5), 50.0, 7.0)]
+    net = Network(cells, ues)
+
+    rng = np.random.default_rng(0)
+    h2 = 1e-4 * (rng.standard_normal((1, 2, 1, 4, 2, 4))
+                 + 1j * rng.standard_normal((1, 2, 1, 4, 2, 4)))
+    r2 = compute_kpis(net, h2, _cfg())
+    r1 = compute_kpis(net, h2[:, :1], _cfg())
+    assert np.isfinite(r2.ues[0].sinr_db)
+    assert r2.ues[0].sinr_db >= r1.ues[0].sinr_db  # MRC cannot lose
+
+
 def test_link_curve_monotone_and_bounds():
     curve = load_link_curve()  # ships the OAI-measured table
     # Below the lowest point -> no service.
