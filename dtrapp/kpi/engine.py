@@ -123,10 +123,17 @@ def compute_kpis(
     cfr,
     config: SimulationConfig,
     link_curve: LinkCurve | None = None,
+    cio_db=None,
 ) -> KpiResult:
     """Per-UE and per-cell KPIs from the ray-traced CFR via the OAI link curve.
 
     ``cfr`` shape: [num_ues, num_ue_ant, num_cells, num_bs_ant, num_ofdm_symbols, num_sc].
+
+    ``cio_db`` is an optional per-cell cell-individual-offset (dB, length num_cells)
+    that biases *association only* (a UE attaches to the cell maximising
+    ``RSRP + CIO``). It does not change transmit power or the physical SINR - this
+    is the standard O-RAN traffic-steering / load-balancing control knob. Default
+    (``None``) reproduces plain strongest-cell association.
     """
     cells, ues = network.cells, network.ues
     if not ues or not cells:
@@ -148,10 +155,16 @@ def compute_kpis(
     # Flat PSD: per-subcarrier tx power = P_total * (scs / cell bandwidth).
     p_re = tx_watt * scs / bw                                    # [nC]
 
-    # Association on wideband mean received power (RSRP-like).
+    # Association on wideband mean received power (RSRP-like), biased by the
+    # per-cell CIO (traffic-steering control). Power/SINR use the true rx_watt.
     mean_h2 = (np.abs(h) ** 2).mean(axis=(1, 3, 4, 5))           # [nU, nC]
     rx_watt = mean_h2 * tx_watt[None, :]
-    serving = rx_watt.argmax(axis=1)
+    if cio_db is None:
+        assoc_metric = rx_watt
+    else:
+        cio = np.asarray(cio_db, dtype=float).reshape(1, num_cells)
+        assoc_metric = rx_watt * 10.0 ** (cio / 10.0)
+    serving = assoc_metric.argmax(axis=1)
 
     result = KpiResult()
     attached = np.bincount(serving, minlength=num_cells).astype(int)
