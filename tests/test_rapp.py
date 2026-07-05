@@ -9,7 +9,7 @@ import numpy as np
 
 from dtrapp.config import BoundingBox, SimulationConfig
 from dtrapp.kpi import compute_kpis
-from dtrapp.rapp import kpi_metrics, run_traffic_steering
+from dtrapp.rapp import association_changes, kpi_metrics, run_traffic_steering
 from dtrapp.network.models import Cell, Network, UE
 
 
@@ -87,6 +87,21 @@ def test_gains_report_positive_edge():
     gains = out.gains_pct()
     assert gains["edge_mbps"] > 0.0
     assert gains["max_load_delta"] < 0.0
+
+
+def test_association_changes_are_valid_handovers():
+    net, cfr = _congested_scenario()
+    out = run_traffic_steering(net, cfr, _cfg(), step_db=1.0)
+    hos = association_changes(out.baseline, out.steered)
+    # At least one UE is handed over, and every handover is a real cell change.
+    assert len(hos) >= 1
+    for ho in hos:
+        assert ho["from_cell"] != ho["to_cell"]
+        assert {"ue_id", "from_cell", "to_cell"} == set(ho)
+    # The number of handovers matches the count of changed serving cells.
+    base = {u.ue_id: u.serving_cell for u in out.baseline.ues}
+    changed = sum(1 for u in out.steered.ues if base[u.ue_id] != u.serving_cell)
+    assert len(hos) == changed
 
 
 def test_no_op_when_already_balanced():

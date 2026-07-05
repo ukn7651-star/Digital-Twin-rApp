@@ -79,6 +79,21 @@ class SteeringResult:
         return out
 
 
+def association_changes(baseline: KpiResult, steered: KpiResult) -> list[dict]:
+    """UEs whose serving cell changed between two KPI snapshots.
+
+    Turns a steering decision (baseline vs steered association) into concrete
+    per-UE handovers ``{ue_id, from_cell, to_cell}`` that a real stack would
+    execute (e.g. via OAI telnet F1/N2 handover triggers).
+    """
+    base = {u.ue_id: u.serving_cell for u in baseline.ues}
+    return [
+        {"ue_id": u.ue_id, "from_cell": base[u.ue_id], "to_cell": u.serving_cell}
+        for u in steered.ues
+        if base.get(u.ue_id) is not None and base[u.ue_id] != u.serving_cell
+    ]
+
+
 def run_traffic_steering(
     network: Network,
     cfr,

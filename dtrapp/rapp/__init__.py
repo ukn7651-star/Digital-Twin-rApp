@@ -8,8 +8,14 @@ cell-individual offset (CIO), the standard O-RAN non-RT control knob.
 
 from dtrapp.rapp.traffic_steering import (
     SteeringResult,
+    association_changes,
     kpi_metrics,
     run_traffic_steering,
 )
 
-__all__ = ["SteeringResult", "kpi_metrics", "run_traffic_steering"]
+__all__ = [
+    "SteeringResult",
+    "association_changes",
+    "kpi_metrics",
+    "run_traffic_steering",
+]
