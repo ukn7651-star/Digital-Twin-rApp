@@ -44,7 +44,7 @@ Inter-cell interference is modeled as (frequency-selective) noise power rather t
 
 ## V. Conclusion
 
-We presented an open, CPU-only, site-specific multi-cell 5G digital twin that grounds its throughput in OpenAirInterface's physical layer, closes a traffic-steering rApp loop with measurable cell-edge and fairness gains, and transmits a real OAI link over the exact ray-traced channel. It is, to our knowledge, the first open platform to combine site-specific ray tracing, a multi-cell network, a physical-layer-grounded link model, and a closed rApp loop on commodity hardware.
+We presented an open, CPU-only, site-specific multi-cell 5G digital twin that grounds its throughput in OpenAirInterface's physical layer, closes a traffic-steering rApp loop with measurable cell-edge and fairness gains, and transmits a real OAI link over the exact ray-traced channel. It is, to our knowledge, the first open platform to bring these four ingredients together on commodity hardware, with the closed-loop rApp evaluated on the multi-cell analytical twin and the real-stack grounding (OAI over the exact ray-traced channel) demonstrated per link. We emphasize that these are demonstrated as components of one platform rather than co-executing in a single run: fully integrating the rApp control loop with a multi-cell OAI stack in the loop is ongoing work.
 
 ## References (to be completed)
 
