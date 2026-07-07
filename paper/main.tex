@@ -216,7 +216,7 @@ real deployments run through an identical path.
   \draw[->] (scene) -- (rt);  \draw[->] (rt) -- (cfr);
   \draw[->] (cfr.east) -- (kpi.west); \draw[->] (kpi) -- (rapp); \draw[->] (rapp) -- (kout);
   \draw[->] (cfr.east) -- (oai.west);
-  \draw[->] (dlsim.east) -| (kpi.south);
+  \draw[->] (dlsim.east) -| ([xshift=9mm]cfr.east) |- ([yshift=-2mm]kpi.west);
   \draw[->] (floor) -- (oai);
   % layer captions
   \node[font=\itshape\footnotesize, above=1mm of kpi] {fast analytical layer (all cells / UEs)};
