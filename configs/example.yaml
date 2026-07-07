@@ -1,0 +1,52 @@
+# Example scenario: a small area of central Berlin.
+# Swap the bbox for any area with OSM building coverage. If OSM returns no
+# buildings, the engine raises an error and stops (no fallback).
+
+bbox:
+  min_lat: 52.5132
+  min_lon: 13.3750
+  max_lat: 52.5168
+  max_lon: 13.3810
+
+# geometry
+default_building_height_m: 15.0
+meters_per_level: 3.0
+building_material: itu_concrete
+
+# network (seeded random stand-in for real data)
+seed: 42
+num_sites: 3
+sectors_per_site: 3
+bs_height_m: 25.0
+tx_power_dbm: 46.0
+carrier_freq_hz: 3.5e9
+bandwidth_hz: 20.0e6
+num_ues: 30
+ue_height_m: 1.5
+ue_noise_figure_db: 7.0
+
+# propagation (Sionna RT)
+max_depth: 3
+
+# antennas
+bs_antenna_rows: 4
+bs_antenna_cols: 1
+bs_antenna_pattern: tr38901     # 3GPP sector pattern; or "iso", "dipole"
+bs_antenna_polarization: V      # V, H, VH (dual), cross
+ue_antenna_rows: 1
+ue_antenna_cols: 1
+ue_antenna_pattern: iso
+ue_antenna_polarization: V
+antenna_spacing: 0.5            # element spacing (multiples of wavelength)
+downtilt_deg: 8.0
+
+# kpi (Sionna SYS link-level chain)
+temperature_k: 290.0
+bler_target: 0.1            # link-adaptation BLER target
+mcs_table_index: 1         # 5G-NR MCS table (1: up to 64QAM, 2: up to 256QAM)
+subcarrier_spacing_hz: 30.0e3
+num_subcarriers: 128       # representative sub-band for the post-eq SINR / MCS
+num_ofdm_symbols: 12
+
+# runner
+output_dir: output

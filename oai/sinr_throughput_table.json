@@ -1,0 +1,147 @@
+{
+  "source": "OAI nr_dlsim (RB=106, 12 frames/pt)",
+  "bler_target": 0.1,
+  "mcs_table_index": 1,
+  "points": [
+    {
+      "sinr_db": -2.6,
+      "mcs": 0,
+      "se_bps_per_hz": 0.2344
+    },
+    {
+      "sinr_db": -1.8,
+      "mcs": 1,
+      "se_bps_per_hz": 0.3066
+    },
+    {
+      "sinr_db": -0.6,
+      "mcs": 2,
+      "se_bps_per_hz": 0.377
+    },
+    {
+      "sinr_db": 0.4,
+      "mcs": 3,
+      "se_bps_per_hz": 0.4902
+    },
+    {
+      "sinr_db": 1.2,
+      "mcs": 4,
+      "se_bps_per_hz": 0.6016
+    },
+    {
+      "sinr_db": 2.0,
+      "mcs": 5,
+      "se_bps_per_hz": 0.7402
+    },
+    {
+      "sinr_db": 2.8,
+      "mcs": 6,
+      "se_bps_per_hz": 0.877
+    },
+    {
+      "sinr_db": 3.8,
+      "mcs": 7,
+      "se_bps_per_hz": 1.0273
+    },
+    {
+      "sinr_db": 4.8,
+      "mcs": 8,
+      "se_bps_per_hz": 1.1758
+    },
+    {
+      "sinr_db": 5.4,
+      "mcs": 9,
+      "se_bps_per_hz": 1.3262
+    },
+    {
+      "sinr_db": 7.6,
+      "mcs": 10,
+      "se_bps_per_hz": 1.3281
+    },
+    {
+      "sinr_db": 7.8,
+      "mcs": 11,
+      "se_bps_per_hz": 1.4766
+    },
+    {
+      "sinr_db": 8.6,
+      "mcs": 12,
+      "se_bps_per_hz": 1.6953
+    },
+    {
+      "sinr_db": 9.2,
+      "mcs": 13,
+      "se_bps_per_hz": 1.9141
+    },
+    {
+      "sinr_db": 10.0,
+      "mcs": 14,
+      "se_bps_per_hz": 2.1602
+    },
+    {
+      "sinr_db": 10.8,
+      "mcs": 15,
+      "se_bps_per_hz": 2.4062
+    },
+    {
+      "sinr_db": 12.6,
+      "mcs": 17,
+      "se_bps_per_hz": 2.5664
+    },
+    {
+      "sinr_db": 13.2,
+      "mcs": 18,
+      "se_bps_per_hz": 2.7305
+    },
+    {
+      "sinr_db": 13.8,
+      "mcs": 19,
+      "se_bps_per_hz": 3.0293
+    },
+    {
+      "sinr_db": 14.6,
+      "mcs": 20,
+      "se_bps_per_hz": 3.3223
+    },
+    {
+      "sinr_db": 15.6,
+      "mcs": 21,
+      "se_bps_per_hz": 3.6094
+    },
+    {
+      "sinr_db": 16.4,
+      "mcs": 22,
+      "se_bps_per_hz": 3.9023
+    },
+    {
+      "sinr_db": 17.4,
+      "mcs": 23,
+      "se_bps_per_hz": 4.2129
+    },
+    {
+      "sinr_db": 18.4,
+      "mcs": 24,
+      "se_bps_per_hz": 4.5234
+    },
+    {
+      "sinr_db": 19.0,
+      "mcs": 25,
+      "se_bps_per_hz": 4.8164
+    },
+    {
+      "sinr_db": 20.2,
+      "mcs": 26,
+      "se_bps_per_hz": 5.1152
+    },
+    {
+      "sinr_db": 21.0,
+      "mcs": 27,
+      "se_bps_per_hz": 5.332
+    },
+    {
+      "sinr_db": 21.4,
+      "mcs": 28,
+      "se_bps_per_hz": 5.5547
+    }
+  ]
+}
