@@ -134,11 +134,9 @@ The platform is a pipeline with two consumers of one physics substrate (Fig.~\re
 
 \textbf{Geometry.} A WGS84 bounding box drives an OpenStreetMap (Overpass) query; footprints are extruded into a 3D Mitsuba scene with ITU materials.
 
-\textbf{Network.} Cells and UEs come from a swappable source: a seeded random generator ($N$ sites $\times$ 3 sectors, uniform UE drops) or a CSV source for real coordinates (e.g., OpenCelliD).
+\textbf{Network.} Cells and UEs come from a swappable source: a seeded random generator ($N$ sites $\times$ 3 sectors, uniform UE drops) for controlled experiments, or a CSV reader for real cell-site coordinates (e.g., OpenCelliD). Both feed the same pipeline, so the twin can be calibrated on synthetic data and run on real site data without code changes.
 
-\textbf{Channel.} Sionna~RT~\cite{sionnart} places one transmitter per cell (3GPP sector pattern, planar array, downtilt) and one receiver per UE and computes the channel frequency response for every cell-to-UE link over an OFDM resource grid. The ray tracer captures reflections, diffractions, and scattering from building geometry, producing a frequency-selective channel that encodes the specific site's propagation environment. Ray-tracing depth is set to 3, balancing fidelity against CPU runtime.
-
-\textbf{Swappable network source.} The network source is an interface: a seeded random generator for controlled experiments, or a CSV reader for real cell-site coordinates (e.g., OpenCelliD). Both feed the same pipeline, so the twin can be calibrated on synthetic data and run on real site data without code changes.
+\textbf{Channel.} Sionna~RT~\cite{sionnart} places one transmitter per cell (3GPP sector pattern, planar array, downtilt) and one receiver per UE and computes the channel frequency response for every cell-to-UE link over an OFDM resource grid, capturing reflections, diffractions, and scattering from the building geometry. Ray-tracing depth is 3, balancing fidelity against CPU runtime.
 
 %=============================================================================
 \section{OAI-Grounded KPI Engine}
@@ -219,18 +217,39 @@ Two bridges connect the analytical twin to a live OAI stack, grounding per-link 
 %=============================================================================
 \textbf{Scenes.} Berlin-Mitte (2{,}623 buildings), Paris-Op\'era (121), Manhattan-Midtown (119); geometry fetched/built once per scene and reused across seeds.
 
-\textbf{Random layouts.} Eight seeded layouts per scene (9 cells, 30 UEs)---24 runs ($323$\,s on one CPU server). Radio: 3.5\,GHz, 20\,MHz, 46\,dBm, $4\times1$ BS array, NF 7\,dB, 30\,kHz SCS, ray-tracing depth 3, default inter-cell load $1.0$.
+\textbf{Random layouts.} Eight seeded layouts per scene---24 runs ($323$\,s on one CPU server). Radio and topology parameters are summarised in Table~\ref{tab:params}.
 
 \textbf{Configuration sweep.} Neighbour load factor in $\{0,0.25,0.5,0.75,1.0\}$ on a cached channel per scene.
 
 \textbf{Metrics.} We report per-UE downlink throughput (median and mean); the \emph{served cell-edge} rate, defined as the 5th percentile among UEs with non-zero throughput (robust to coverage holes, unlike a raw 5th percentile which collapses to zero once outage exceeds $5\%$); the \emph{outage rate}, the fraction of UEs with zero throughput; Jain's fairness index over per-UE rates; and the peak cell load (largest number of UEs on any cell). rApp gains are reported as mean $\pm$ standard deviation over the eight seeds per scene, and pooled across all 24 runs; a gain is undefined (excluded) for a run whose baseline metric is zero.
+
+\begin{table}[t]
+\caption{Radio and topology parameters.}
+\label{tab:params}
+\centering
+\footnotesize
+\begin{tabular}{@{}ll@{}}
+\toprule
+Parameter & Value \\
+\midrule
+Carrier / bandwidth        & 3.5\,GHz / 20\,MHz \\
+Subcarrier spacing         & 30\,kHz (numerology 1) \\
+Cell transmit power        & 46\,dBm \\
+BS array / UE antennas     & $4\times1$ / 1 \\
+Receiver noise figure      & 7\,dB \\
+Ray-tracing interaction depth & 3 \\
+Cells / UEs per layout     & 9 / 30 \\
+Default inter-cell load $\rho$ & 1.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 %=============================================================================
 \section{Results}
 \label{sec:results}
 %=============================================================================
 \subsection{Traffic-steering rApp}
-Across 24 runs, relative to strongest-cell association (Table~\ref{tab:results}, Fig.~\ref{fig:cdf}): the rApp helps the users a strongest-cell policy under-serves (median, cell-edge, fairness) and sheds peak load. Three honest observations: aggregate rate barely moves ($+0.5\%$; the proportional-fair objective trades sum for fairness), outage is unchanged (steering relocates covered users, it does not create coverage), and variance is high (layout-dependent)---motivating multi-seed evaluation.
+Across 24 runs, relative to strongest-cell association (Tables~\ref{tab:results}--\ref{tab:abs}, Fig.~\ref{fig:cdf}): the rApp helps the users a strongest-cell policy under-serves (median, cell-edge, fairness) and sheds peak load. In absolute terms the overall median per-UE rate rises from $8.5$ to $9.2$\,Mbps and the served cell-edge rate from $3.5$ to $4.2$\,Mbps, while the mean is essentially unchanged ($11.4$\,Mbps). Three honest observations: aggregate rate barely moves ($+0.5\%$; the proportional-fair objective trades sum for fairness), outage is unchanged (steering relocates covered users, it does not create coverage), and variance is high (layout-dependent)---motivating multi-seed evaluation.
 
 The per-scene breakdown is instructive (Fig.~\ref{fig:gainsbar}). Berlin, the densest scene, shows the largest served cell-edge gain ($+41\%$): dense blockage produces stronger load imbalance for the rApp to exploit. Paris shows the smallest gain ($+6\%$) and the highest outage ($23.8\%$): when many users lack coverage entirely, steering has little covered load to rebalance. Manhattan sits in between. The consistent signal across all three cities is that the direction of the effect is robust---median throughput, cell-edge rate, and fairness improve while peak load falls---whereas the magnitude is strongly deployment-dependent, which is exactly the kind of conclusion a single-scenario study would misrepresent.
 
@@ -249,6 +268,22 @@ Jain fairness gain & $9.1\pm11.0\%$ & $11.2\%$ & $4.4\%$ & $11.5\%$ \\
 Peak load (UEs) & $-0.75$ & $-0.88$ & $-0.50$ & $-0.88$ \\
 Mean tput gain & $0.5\pm5.8\%$ & $-0.7\%$ & $-0.3\%$& $2.5\%$ \\
 Outage change & $0.0$ pts & $0.0$ & $0.0$ & $0.0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\caption{Absolute per-UE throughput, baseline$\to$rApp (Mbps, mean over seeds).}
+\label{tab:abs}
+\centering
+\footnotesize
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Metric & Berlin & Paris & Manh. & Overall \\
+\midrule
+Median tput & $8.3\!\to\!9.2$   & $9.0\!\to\!9.4$   & $8.2\!\to\!9.1$   & $8.5\!\to\!9.2$ \\
+Served edge & $2.7\!\to\!3.9$   & $3.8\!\to\!4.1$   & $4.1\!\to\!4.7$   & $3.5\!\to\!4.2$ \\
+Mean tput   & $11.3\!\to\!11.2$ & $12.2\!\to\!12.1$ & $10.8\!\to\!10.9$ & $11.4\!\to\!11.4$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -302,9 +337,6 @@ The channel injection bridge (Sec.~\ref{sec:bridges}) was verified on a live OAI
 
 \subsection{Toward full-stack integration}
 The verified components compose into a full-stack closed loop. A multi-UE Standalone deployment (OAI 5G core, gNB, $N$ UEs) would place each UE on its ray-traced channel and interference noise floor; FlexRIC~\cite{flexric} would stream per-UE KPMs; iperf3 would supply goodput; and the rApp would issue CIO actions over O1/telnet. The headline measurement this enables is the \emph{fidelity gap}---the difference between the rApp gain the twin predicts (Table~\ref{tab:results}) and the gain the real stack delivers.
-
-\subsection{Implications for twin-based rApp development}
-Two practical conclusions follow. First, a twin intended to \emph{rank} control policies should report distributions over many random deployments, not a headline number from one scenario: our single-seed pilot suggested a uniformly large gain, which the 24-run study tempered into a robust-direction/variable-magnitude result. Second, coverage and load are distinct problems---traffic steering improves \emph{covered} users but cannot rescue users in outage---so a twin used to size an rApp's benefit must account for the coverage regime rather than reporting served-user throughput alone.
 
 %=============================================================================
 \section{Discussion and Limitations}
