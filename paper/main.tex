@@ -15,9 +15,9 @@
 
 \newcommand{\y}{\checkmark}
 \newcommand{\n}{$\times$}
-\newcommand{\figorbox}[2]{%
-  \IfFileExists{#1}{\includegraphics[width=\columnwidth]{#1}}%
-  {\fbox{\parbox[c][3.2cm][c]{0.92\columnwidth}{\centering \texttt{#2}}}}}
+\newcommand{\figorbox}[3][\columnwidth]{%
+  \IfFileExists{#2}{\includegraphics[width=#1]{#2}}%
+  {\fbox{\parbox[c][3.2cm][c]{0.92\columnwidth}{\centering \texttt{#3}}}}}
 
 \begin{document}
 
@@ -29,7 +29,7 @@
 \maketitle
 
 \begin{abstract}
-Network digital twins are essential for developing O-RAN rApps before deployment, yet open platforms force a trade-off among protocol-stack realism, site-specific propagation, network scale, and closed-loop control---none combines all four. We address the fidelity gap at its root: the link-to-system (L2S) abstraction. Instead of idealized SINR-to-throughput curves, our twin maps per-resource-element SINR to throughput through a curve \emph{measured on OpenAirInterface's (OAI) real physical layer} (\texttt{nr\_dlsim} with LDPC decoding), so network-scale KPIs inherit a real receiver's implementation losses. We quantify this gap: at 10\,dB SINR, the OAI curve delivers 2.16\,bits/s/Hz---38\% below the Shannon bound (3.46\,bits/s/Hz)---and its MCS steps are non-uniform, spanning up to 2.2\,dB versus the $\sim$1\,dB of an idealized staircase. The twin builds multi-cell, multi-user 5G scenes from OpenStreetMap, ray-traces every cell-to-user channel with Sionna~RT, and hosts a proportional-fair traffic-steering rApp. Two bridges connect the analytical twin to a live OAI stack: exact ray-traced channel injection and a per-UE interference-as-noise-floor mapping. Across three cities and eight random layouts each (24 runs), the rApp raises median per-user throughput by $9.5\pm11.3\%$ and served cell-edge throughput by $22.4\pm24.8\%$, improves Jain fairness by $9.1\%$, and reduces peak cell load by $0.75$ users, while leaving aggregate rate and coverage-limited outage unchanged. Crucially, this gap is not cosmetic: replacing the OAI curve with an idealized one inflates throughput by $35\%$ and changes the rApp's steering decisions in $42\%$ of layouts while mis-estimating its per-deployment gain by a median of $7.5$ points---so a twin built on idealized curves is unsafe for tuning or ranking a control policy.
+Network digital twins are essential for developing O-RAN rApps before deployment, yet open platforms force a trade-off among protocol-stack realism, site-specific propagation, network scale, and closed-loop control---none combines all four. We address the fidelity gap at its root: the link-to-system (L2S) abstraction. Instead of idealized SINR-to-throughput curves, our twin maps per-resource-element SINR to throughput through a curve \emph{measured on OpenAirInterface's (OAI) real physical layer} (\texttt{nr\_dlsim} with LDPC decoding), so network-scale KPIs inherit a real receiver's implementation losses. We quantify this gap: at 10\,dB SINR, the OAI curve delivers 2.16\,bits/s/Hz---38\% below the Shannon bound (3.46\,bits/s/Hz)---and its MCS steps are non-uniform, spanning up to 2.2\,dB versus the $\sim$1\,dB of an idealized staircase. The twin builds multi-cell, multi-user 5G scenes from OpenStreetMap, ray-traces every cell-to-user channel with Sionna~RT, and hosts a proportional-fair traffic-steering rApp. Two bridges connect the analytical twin to a live OAI stack: exact ray-traced channel injection and a per-UE interference-as-noise-floor mapping. Across three cities and eight random layouts each (24 runs), the rApp raises median per-user throughput by $9.5\pm11.3\%$ and served cell-edge throughput by $22.4\pm24.8\%$, improves Jain fairness by $9.1\%$, and reduces peak cell load by $0.75$ users, while leaving aggregate rate and coverage-limited outage unchanged. This gap is not cosmetic: replacing the OAI curve with an idealized one inflates throughput by $35\%$ and changes the rApp's steering decisions in $42\%$ of layouts while mis-estimating its per-deployment gain by a median of $7.5$ points. Finally, we close the loop on a live OAI 5G Standalone stack---5G core, gNB, a real UE that registers and carries a PDU session, and iperf3 goodput over the UPF---on the same commodity host, and \emph{measure} the fidelity gap end-to-end: at matched operating points the twin's link-level rate overpredicts deliverable goodput by a median of $53\%$ (the MAC/TDD/transport overhead the link curve omits), and propagated through the rApp this mis-estimates the per-UE steering gain by $4.9$ points. Even an OAI-grounded twin is thus optimistic until it is closed against the real stack.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -50,6 +50,7 @@ This paper contributes:
 \item An \emph{OAI-grounded L2S abstraction, and evidence that it matters for control.} The SINR-to-throughput curve is measured from OAI's real PHY (38\% below Shannon at 10\,dB, with non-uniform MCS steps up to 2.2\,dB). We then show the fidelity gap is first-order, not cosmetic: replacing this curve with an idealized one changes the traffic-steering rApp's decisions in 42\% of layouts and mis-estimates its per-deployment gain by a median of 7.5 points.
 \item An open, CPU-only, multi-cell/multi-user digital twin: OpenStreetMap geometry $\to$ Sionna~RT ray tracing $\to$ per-UE/cell throughput, with a swappable network source for real cell-site data.
 \item Two twin-to-real-stack bridges: (a)~exact ray-traced channel injection into a live OAI gNB--UE link, and (b)~a per-UE interference-as-noise-floor mapping that lets a single-link OAI run reflect its multi-cell context.
+\item \emph{A measured, end-to-end fidelity gap.} We stand up the full OAI 5G Standalone loop---5G core, gNB, a real UE PDU session, and iperf3 goodput over the UPF---on the same commodity host, and measure deliverable goodput against the twin's prediction: the real stack delivers a median $53\%$ less than the link-level rate across the MCS range, and the rApp's per-UE steering gain is mis-estimated by $4.9\pm4.3$ points. This makes concrete the difference between what the twin predicts and what the real stack delivers.
 \item A rigorous multi-scene, multi-seed evaluation (24 runs across 3 cities) of a proportional-fair traffic-steering rApp, with honest reporting of variance and outage, a load-sensitivity sweep separating coverage-limited and interference-limited regimes, and a correlation analysis showing rApp gain is limited by baseline outage rather than by raw load imbalance.
 \end{enumerate}
 
@@ -84,7 +85,7 @@ OAI VRTSim / RT emulator & \y & \y & \n$^{d}$ & \n \\
 \\[2pt]
 \raggedright\scriptsize
 $^{a}$replayed traces; $^{b}$ns-3 abstract PHY; $^{c}$over-the-air;
-$^{d}$multi-node on roadmap; $^{*}$components integrated, full loop in progress.
+$^{d}$multi-node on roadmap; $^{*}$SA loop closed \& measured; multi-cell steering grounded per-link.
 \end{table}
 
 %=============================================================================
@@ -251,7 +252,7 @@ Default inter-cell load $\rho$ & 1.0 \\
 \subsection{Traffic-steering rApp}
 Across 24 runs, relative to strongest-cell association (Table~\ref{tab:results}, Fig.~\ref{fig:cdf}): the rApp helps the users a strongest-cell policy under-serves (median, cell-edge, fairness) and sheds peak load. In absolute terms the overall median per-UE rate rises from $8.5$ to $9.2$\,Mbps and the served cell-edge rate from $3.5$ to $4.2$\,Mbps, while the mean is essentially unchanged ($11.4$\,Mbps). Three honest observations: aggregate rate barely moves ($+0.5\%$; the proportional-fair objective trades sum for fairness), outage is unchanged (steering relocates covered users, it does not create coverage), and variance is high (layout-dependent)---motivating multi-seed evaluation.
 
-The per-scene breakdown is instructive (Table~\ref{tab:results}). Berlin, the densest scene, shows the largest served cell-edge gain ($+41\%$): dense blockage produces stronger load imbalance for the rApp to exploit. Paris shows the smallest gain ($+6\%$) and the highest outage ($23.8\%$): when many users lack coverage entirely, steering has little covered load to rebalance. Manhattan sits in between. The consistent signal across all three cities is that the direction of the effect is robust---median throughput, cell-edge rate, and fairness improve while peak load falls---whereas the magnitude is strongly deployment-dependent, which is exactly the kind of conclusion a single-scenario study would misrepresent.
+The per-scene breakdown is instructive (Table~\ref{tab:results}). Berlin, the densest scene, shows the largest served cell-edge gain ($+41\%$): dense blockage produces stronger load imbalance for the rApp to exploit. Paris shows the smallest gain ($+6\%$) and the highest outage ($23.8\%$): when many users lack coverage entirely, steering has little covered load to rebalance. Manhattan sits in between. Across all three cities the direction is robust---median, cell-edge, and fairness improve while peak load falls---while the magnitude is strongly deployment-dependent, exactly what a single-scenario study would misrepresent.
 
 \begin{table}[t]
 \caption{rApp gains vs.\ strongest-cell (mean $\pm$ std over seeds).}
@@ -274,7 +275,7 @@ Outage change & $0.0$ pts & $0.0$ & $0.0$ & $0.0$ \\
 
 \begin{figure}[t]
 \centering
-\figorbox{fig_cdf_pooled.png}{fig\_cdf\_pooled.png}
+\figorbox[0.82\columnwidth]{fig_cdf_pooled.png}{fig\_cdf\_pooled.png}
 \caption{Per-UE throughput CDF, baseline vs.\ rApp (pooled over all scenes and seeds). The rApp lifts the low-to-median part of the distribution.}
 \label{fig:cdf}
 \end{figure}
@@ -289,49 +290,45 @@ The 38\% link-curve gap of Sec.~\ref{sec:kpi} is not cosmetic---it changes what 
 \label{fig:fidgap}
 \end{figure}
 
-\subsection{Coverage and outage}
-Mean UE outage is $16.2\%$ at full load, and scene-dependent (Berlin $8.8\%$, Manhattan $16.3\%$, Paris $23.8\%$), reflecting random placement over the extent. For a fixed layout, outage is coverage-limited (path-loss-driven) and insensitive to inter-cell load, while served users are interference-limited (Fig.~\ref{fig:outage}). The rApp gain tracks this coverage regime: across runs, median gain declines with baseline outage ($r{=}{-}0.42$), whereas raw load imbalance (peak-to-mean load) is only weakly predictive ($R^2{=}0.04$)---steering helps where there is \emph{covered} load to rebalance, not merely where load is uneven.
+\subsection{The real fidelity gap}
+\label{sec:realgap}
+The analysis above compares two \emph{models}; we now close the loop on the real stack and measure the gap directly. We stand up a full OAI 5G Standalone system on the same CPU host---the OAI 5G core (AMF/SMF/UPF and supporting NFs, all healthy), a gNB, and a real UE that registers, establishes a PDU session (DL IP over the UPF), and carries user-plane traffic---and confirm end-to-end connectivity by iperf3 to the data network. Because the rfsimulator is single-gNB, we ground the \emph{link} dimension of the rApp decision on the real stack: we pin the downlink operating point by capping the scheduler MCS over a clean channel, sweep the cap across MCS~2--28, and measure end-to-end iperf3 goodput at each fixed MCS, which indexes the same OAI curve the twin uses (a shared SINR axis). The rApp's load-balancing dimension remains evaluated on the multi-cell analytical twin (Sec.~\ref{sec:results}A).
+
+The result is Fig.~\ref{fig:realgap}. The twin's link-level rate $B\,\eta_{\mathrm{OAI}}(1-\mathrm{BLER})$ overpredicts real end-to-end goodput by a median of $53\%$ (mean $50\%$)---e.g.\ at MCS~28, $100$ vs.\ $33.5$\,Mbps. This gap is \emph{larger} than the link-model gap of Sec.~\ref{sec:kpi} and distinct in origin: $\Phi_{\mathrm{OAI}}$ is measured on an isolated, full-buffer \texttt{nr\_dlsim} link, whereas the real stack pays for the TDD frame structure (7D:2U), HARQ, RLC/PDCP/SDAP/GTP headers, scheduler dynamics, and TCP. Propagated through the rApp over eight layouts (240 per-UE evaluations, 13 steered UEs), the twin-predicted per-UE steering gain ($-28.5\%$ mean) and the real gain ($-23.7\%$) differ by $4.9\pm4.3$ points: the real stack's flatter rate-vs-SINR curve compresses every move, consistently overstated by the twin. A policy tuned on link-level rates misjudges its own impact until closed against the real stack.
 
 \begin{figure}[t]
 \centering
-\figorbox{fig_outage_vs_load.png}{fig\_outage\_vs\_load.png}
-\caption{UE outage vs.\ inter-cell load factor, per scene. Outage is flat---coverage-limited, not interference-limited.}
-\label{fig:outage}
+\figorbox{fig_real_fidelity_gap.png}{fig\_real\_fidelity\_gap.png}
+\caption{Measured real fidelity gap. Left: twin link-level rate vs.\ real OAI Standalone end-to-end goodput (iperf3) at matched operating SINR---real is a median $53\%$ lower. Right: per-UE rApp steering gain, twin-predicted vs.\ real-stack (8 layouts); points below $y{=}x$ show the twin overstating each move (gap $4.9$ pts).}
+\label{fig:realgap}
 \end{figure}
+
+\subsection{Coverage and outage}
+Mean UE outage is $16.2\%$ at full load, and scene-dependent (Berlin $8.8\%$, Manhattan $16.3\%$, Paris $23.8\%$), reflecting random placement over the extent. For a fixed layout, outage is coverage-limited (path-loss-driven) and insensitive to inter-cell load, while served users are interference-limited. The rApp gain tracks this coverage regime: across runs, median gain declines with baseline outage ($r{=}{-}0.42$), whereas raw load imbalance (peak-to-mean load) is only weakly predictive ($R^2{=}0.04$)---steering helps where there is \emph{covered} load to rebalance, not merely where load is uneven.
 
 \subsection{Sensitivity to inter-cell load}
-As the neighbour load factor falls from $1.0$ to $0$, mean per-UE throughput rises $1.7$--$1.8\times$ (Berlin $13.6\to22.7$, Paris $14.9\to25.2$, Manhattan $11.9\to22.0$~Mbps; Fig.~\ref{fig:tput}), confirming served users are interference-limited. Combined with the outage result, this separates two regimes the twin must represent distinctly: a coverage-limited tail, set by path loss and insensitive to load, that steering cannot fix; and an interference-limited body, where both the neighbour load and the rApp's load-balancing act. A twin that reported only average throughput would blur these, and an rApp tuned on such a twin could over-claim gains that evaporate in the coverage-limited tail of a real deployment.
-
-\begin{figure}[t]
-\centering
-\figorbox{fig_throughput_vs_load.png}{fig\_throughput\_vs\_load.png}
-\caption{Mean per-UE throughput vs.\ inter-cell load factor, per scene. Served users are interference-limited.}
-\label{fig:tput}
-\end{figure}
+As the neighbour load factor falls from $1.0$ to $0$, mean per-UE throughput rises $1.7$--$1.8\times$ (Berlin $13.6\to22.7$, Paris $14.9\to25.2$, Manhattan $11.9\to22.0$~Mbps), confirming served users are interference-limited. Combined with the outage result, this separates two regimes the twin must represent distinctly: a coverage-limited tail, set by path loss and insensitive to load, that steering cannot fix; and an interference-limited body, where both the neighbour load and the rApp's load-balancing act. A twin reporting only average throughput would blur these regimes.
 
 \subsection{Real-stack grounding}
-The channel injection bridge (Sec.~\ref{sec:bridges}) was verified on a live OAI gNB--UE link. OAI builds and runs on the same CPU host; the link reports real PHY KPIs (downlink SNR ${\sim}15$\,dB, MCS 9), and injection is confirmed in the gNB log (\texttt{[RT] injected 4 taps ... channel\_length=49}). The link then runs its PHY/MAC (HARQ, link adaptation) over the site-specific channel. Absolute path loss is masked by automatic gain control and uplink power control in phy-test mode, so the proof of grounding is the injection and the multipath the receiver equalises, not an absolute level change; absolute goodput requires the full-stack Standalone path outlined below.
-
-\subsection{Toward full-stack integration}
-The verified components compose into a full-stack closed loop. A multi-UE Standalone deployment (OAI 5G core, gNB, $N$ UEs) would place each UE on its ray-traced channel and interference noise floor; FlexRIC~\cite{flexric} would stream per-UE KPMs; iperf3 would supply goodput; and the rApp would issue CIO actions over O1/telnet. The headline measurement this enables is the \emph{fidelity gap}---the difference between the rApp gain the twin predicts (Table~\ref{tab:results}) and the gain the real stack delivers.
+The channel-injection bridge (Sec.~\ref{sec:bridges}) is verified on a live OAI gNB--UE link on the same CPU host: injection is confirmed in the gNB log (\texttt{[RT] injected 4 taps \ldots channel\_length=49}) and the link runs its PHY/MAC (HARQ, link adaptation) over the site-specific channel. Absolute goodput then comes from the full-stack Standalone path measured in Sec.~\ref{sec:realgap}, where the OAI 5G core, gNB, a real UE PDU session, and iperf3 over the UPF form a running loop---what makes the fidelity gap measurable rather than projected.
 
 %=============================================================================
 \section{Discussion and Limitations}
 \label{sec:disc}
 %=============================================================================
-We state these plainly. (1)~The rApp closed loop is evaluated on the analytical twin; the OAI stack provides per-link ground truth and verified channel injection but is not yet \emph{driven} by the rApp in one running system. (2)~Inter-cell interference is modelled as noise power rather than physically combined waveforms; waveform-level combining requires FPGA/GPU-class emulators. (3)~The evaluation is a static full-buffer snapshot, single carrier, downlink only; mobility, fractional frequency reuse, and uplink are natural extensions. (4)~rApp benefits are high-variance and layout-dependent; we report full distributions. (5)~Traffic steering does not address coverage. (6)~Validation is stack-versus-model; calibration against field measurements and real cell-site databases are the highest-value next steps.
+We state these plainly. (1)~The full OAI Standalone loop runs and the real fidelity gap is measured (Sec.~\ref{sec:realgap}), but on a single gNB: the rApp's inter-cell load-balancing is evaluated on the analytical twin, while the real stack grounds the link/operating-point dimension; a single-run, multi-gNB N2 handover driven by the rApp is the remaining step. (2)~Inter-cell interference is modelled as a noise-floor rise, not physically combined waveforms (which need FPGA/GPU emulators). (3)~The evaluation is a static full-buffer snapshot, single carrier, downlink; mobility, FFR, and uplink are natural extensions. (4)~rApp benefits are high-variance and layout-dependent (we report full distributions), and steering does not address coverage. (5)~Validation is stack-versus-model; field calibration and real cell-site databases are the next steps.
 
 %=============================================================================
 \section{Conclusion}
 %=============================================================================
-We presented an open, CPU-only, site-specific, multi-cell 5G digital twin that grounds throughput in OAI's physical layer---replacing idealized link-to-system curves with a curve measured from a real 5G receiver---and hosts a traffic-steering rApp. We quantified the implementation loss (38\% below Shannon at 10\,dB) and, crucially, showed it is first-order for control: an idealized-curve twin changes the rApp's steering decisions in 42\% of layouts and mis-estimates its per-deployment gain by a median of 7.5 points, so link-model fidelity---not only channel fidelity---determines whether a twin can be trusted to tune a policy. Two bridges connect the analytical twin to a live OAI stack: exact ray-traced channel injection and a per-UE interference-as-noise-floor mapping. Across three cities and eight random layouts each, the rApp improves median and cell-edge throughput and fairness and relieves peak load, without inflating aggregate rate or fixing coverage---an honest, reproducible result. The rApp gain is limited by baseline outage ($r{=}{-}0.42$) rather than by raw load imbalance, clarifying where steering helps. The full-stack closed loop is the planned integration that will make it the first open platform to bring all four ingredients together on commodity hardware, enabling the measurement of the fidelity gap---the difference between the rApp gain the twin predicts and the gain the real stack delivers.
+We presented an open, CPU-only, site-specific, multi-cell 5G digital twin that grounds throughput in OAI's physical layer---replacing idealized link-to-system curves with a curve measured from a real 5G receiver---and hosts a traffic-steering rApp. We quantified the implementation loss (38\% below Shannon at 10\,dB) and, crucially, showed it is first-order for control: an idealized-curve twin changes the rApp's steering decisions in 42\% of layouts and mis-estimates its per-deployment gain by a median of 7.5 points, so link-model fidelity---not only channel fidelity---determines whether a twin can be trusted to tune a policy. Two bridges connect the analytical twin to a live OAI stack: exact ray-traced channel injection and a per-UE interference-as-noise-floor mapping. Across three cities and eight random layouts each, the rApp improves median and cell-edge throughput and fairness and relieves peak load, without inflating aggregate rate or fixing coverage---an honest, reproducible result. The rApp gain is limited by baseline outage ($r{=}{-}0.42$) rather than by raw load imbalance, clarifying where steering helps. Finally, we closed the loop on a live OAI 5G Standalone stack---5G core, gNB, a real UE PDU session, and iperf3---on the same commodity host and \emph{measured} the fidelity gap: deliverable end-to-end goodput is a median $53\%$ below the twin's link-level prediction, and the rApp's per-UE steering gain is mis-estimated by $4.9$ points. Link-model fidelity is thus necessary but not sufficient: even an OAI-grounded twin must be closed against the real stack before its control conclusions can be trusted.
 
-\textbf{Future work.} Completing the full-stack loop (multi-UE Standalone, FlexRIC~\cite{flexric} KPM, and the rApp acting on OAI) will let us report this fidelity gap on a control task. Beyond that, real cell-site databases, mobility, uplink and multi-carrier support, and calibration against field measurements are the natural directions; each slots into the existing pipeline without changing its structure.
+\textbf{Future work.} A single-run, multi-gNB closed loop---live N2 handovers driven by the rApp with FlexRIC~\cite{flexric} KPM streaming---would extend the measured gap to the load-balancing dimension. Beyond that, real cell-site databases, mobility, uplink and multi-carrier support, and calibration against field measurements are the natural directions; each slots into the existing pipeline without changing its structure.
 
 %=============================================================================
 \section*{Reproducibility}
 %=============================================================================
-All results are produced by an open experiment harness that fetches each scene's geometry once, reuses it across seeds, and aggregates per-run statistics. A single command reproduces the 24-run matrix and the load sweep on a commodity CPU in about five minutes. The twin, the OAI-measured link curve $\Phi_{\mathrm{OAI}}$, the traffic-steering rApp, and the OAI bridges are released together under Apache-2.0.
+An open harness reproduces the 24-run matrix and load sweep on a commodity CPU in ${\sim}5$ minutes; \texttt{experiments/real\_fidelity\_gap.py} drives the live OAI stack for the measured gap. The twin, the OAI-measured curve $\Phi_{\mathrm{OAI}}$, the rApp, the bridges, and the OAI scripts are released together under Apache-2.0.
 
 \bibliographystyle{IEEEtran}
 \bibliography{refs}
