@@ -23,6 +23,25 @@ OSM bbox ─▶ 3D scene ─▶ Sionna RT channel ─┬─▶ multi-cell KPI en
                                            └─▶ OAI in the loop (exact channel injection)
 ```
 
+## What's new (positioning)
+
+Four capabilities matter together for a useful RAN control-app twin: a **real
+protocol stack**, a **site-specific ray-traced** channel, a **multi-cell** network,
+and a **closed-loop rApp**. Existing open platforms each provide only some of them —
+OAI+ray-tracing twins are single-cell and monitor-only; CPU full-stack twins are
+single-cell with replayed channels; ns-3/O-RAN twins close the loop but on an
+abstracted physical layer; real-stack handover demos lack a site-specific channel.
+This project brings all four together in one open, commodity-hardware platform:
+a multi-cell, site-specific twin whose throughput is grounded in a real 5G PHY, with
+a traffic-steering rApp and a bridge that runs a real OAI link over the exact
+ray-traced channel.
+
+Honest scope: the four are provided as **components of one platform**. The rApp
+control loop is evaluated on the multi-cell analytical twin, and the real-stack
+grounding is demonstrated per link; fully integrating the rApp with a multi-cell OAI
+stack in a single run (multi-UE Standalone + FlexRIC) is ongoing work
+(see `oai/README_full_stack.md`).
+
 ## Repository layout
 
 | Path | Contents |
