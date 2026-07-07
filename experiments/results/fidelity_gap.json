@@ -1,0 +1,12 @@
+{
+  "n_runs": 24,
+  "median_tput_inflation_pct": 35.43914230310245,
+  "mean_tput_inflation_pct": 30.03651501448984,
+  "gain_oai_mean_pct": 10.352778187304635,
+  "gain_ideal_mean_pct": 10.94191278098842,
+  "gain_abs_error_mean_pts": 8.182647692620629,
+  "runs_decisions_differ": 10,
+  "frac_decisions_differ": 0.4166666666666667,
+  "mean_steer_jaccard": 0.748611111111111,
+  "mean_cio_diff_cells": 0.9166666666666666
+}
