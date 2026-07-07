@@ -9,6 +9,8 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
 \usepackage{url}
 \usepackage{algorithm}
 
@@ -196,7 +198,36 @@ real deployments run through an identical path.
 
 \begin{figure*}[t]
 \centering
-\figorboxwide{fig_architecture.png}{fig\_architecture.png : OSM $\to$ Sionna RT $\to$ \{analytical KPI engine + rApp\} and \{OAI real-stack grounding\}}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  font=\small, >=Latex, node distance=6mm and 10mm,
+  box/.style={draw,rounded corners,align=center,inner sep=4pt,minimum height=9mm,fill=blue!5},
+  dat/.style={draw,align=center,inner sep=4pt,minimum height=9mm,fill=black!5},
+  oai/.style={draw,rounded corners,align=center,inner sep=4pt,minimum height=9mm,fill=orange!15}]
+  \node[dat] (osm) {OpenStreetMap\\bbox};
+  \node[dat,above=of osm] (net) {Network source\\(random / OpenCelliD)};
+  \node[box,right=of osm] (scene) {3D scene\\(Mitsuba)};
+  \node[box,right=of scene] (rt) {Sionna RT\\ray tracing};
+  \node[dat,right=of rt] (cfr) {ray-traced\\CFR};
+  \node[oai,below=14mm of rt] (dlsim) {OAI \texttt{nr\_dlsim}\\(offline SINR$\to$MCS curve)};
+  % fast analytical layer (top branch)
+  \node[box,right=18mm of cfr,yshift=10mm] (kpi) {KPI engine:\\per-RE SINR (MRT)+EESM\\$\to$ OAI-measured MCS};
+  \node[box,right=of kpi] (rapp) {Traffic-steering\\rApp (CIO)};
+  \node[dat,right=of rapp] (kout) {per-UE / per-cell\\throughput};
+  % real-stack grounding (bottom branch)
+  \node[oai,right=18mm of cfr,yshift=-14mm] (oai) {OAI gNB--UE link\\(rfsim, injected channel)};
+  \node[oai,right=of oai] (floor) {per-UE interference\\noise-floor bridge};
+  % arrows
+  \draw[->] (net) -- (scene); \draw[->] (osm) -- (scene);
+  \draw[->] (scene) -- (rt);  \draw[->] (rt) -- (cfr);
+  \draw[->] (cfr.east) -- (kpi.west); \draw[->] (kpi) -- (rapp); \draw[->] (rapp) -- (kout);
+  \draw[->] (cfr.east) -- (oai.west);
+  \draw[->] (dlsim.east) -| (kpi.south);
+  \draw[->] (floor) -- (oai);
+  % layer captions
+  \node[font=\itshape\footnotesize, above=1mm of kpi] {fast analytical layer (all cells / UEs)};
+  \node[font=\itshape\footnotesize, below=1mm of oai] {real-stack grounding (sampled links)};
+\end{tikzpicture}}
 \caption{Architecture. OpenStreetMap geometry and a swappable network source feed
 Sionna~RT; the ray-traced channel drives (top) an analytical multi-cell KPI engine
 and the traffic-steering rApp, and (bottom) a live OAI link over the exact channel
