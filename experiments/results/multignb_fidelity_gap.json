@@ -1,0 +1,19 @@
+{
+  "n_layouts": 8,
+  "n_moved_measured": 8,
+  "n_handover_ok": 8,
+  "method": "CU+2DU F1; scripted telnet ci trigger_f1_ho; 2-cell twin (1 site x 2 sectors)",
+  "per_ue_twin_gain_mean_pct": 66.213125,
+  "per_ue_real_gain_mean_pct": 8.967,
+  "per_ue_fidelity_gap_mean_pts": 57.246125,
+  "per_ue_fidelity_gap_std_pts": 165.4790561313104,
+  "twin_mean_gain_mean_pct": -2.3394999999999997,
+  "real_mean_gain_mean_pct": 8.967,
+  "mean_fidelity_gap_mean_pts": -11.3065,
+  "twin_median_gain_mean_pct": NaN,
+  "real_median_gain_mean_pct": 8.967,
+  "median_fidelity_gap_mean_pts": NaN,
+  "twin_served_edge_gain_mean_pct": 10.40675,
+  "real_served_edge_gain_mean_pct": 8.967,
+  "served_edge_fidelity_gap_mean_pts": 1.43975
+}
