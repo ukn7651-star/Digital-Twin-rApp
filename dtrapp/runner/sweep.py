@@ -216,6 +216,29 @@ def _plots(out, rows, ue_tp, load_rows, scene_names):
     ax.grid(True, alpha=0.3); ax.legend()
     fig.tight_layout(); fig.savefig(out / "fig_throughput_vs_load.png", dpi=130); plt.close(fig)
 
+    # Fig 4: rApp gain by scene (mean +/- std over seeds), per headline metric
+    metrics = [("gain_median_pct", "Median tput"),
+               ("gain_servededge_pct", "Served edge"),
+               ("gain_jain_pct", "Jain fairness")]
+
+    def _ms(scene, col):
+        v = np.array([r[col] for r in rows if r["scene"] == scene], float)
+        v = v[np.isfinite(v)]
+        return (float(v.mean()), float(v.std())) if v.size else (float("nan"), 0.0)
+
+    x = np.arange(len(scene_names)); w = 0.26
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for i, (col, lab) in enumerate(metrics):
+        means = [_ms(s, col)[0] for s in scene_names]
+        stds = [_ms(s, col)[1] for s in scene_names]
+        ax.bar(x + (i - 1) * w, means, w, yerr=stds, capsize=3, label=lab)
+    ax.axhline(0, color="k", lw=0.8)
+    ax.set_xticks(x); ax.set_xticklabels(scene_names, rotation=0)
+    ax.set_ylabel("rApp gain over strongest-cell [%]")
+    ax.set_title(r"Traffic-steering gains by scene (mean $\pm$ std over seeds)")
+    ax.grid(True, axis="y", alpha=0.3); ax.legend()
+    fig.tight_layout(); fig.savefig(out / "fig_gains_by_scene.png", dpi=130); plt.close(fig)
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
