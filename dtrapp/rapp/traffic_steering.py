@@ -45,11 +45,15 @@ def kpi_metrics(result: KpiResult) -> dict:
         return {"sum_mbps": 0.0, "mean_mbps": 0.0, "edge_mbps": 0.0,
                 "min_mbps": 0.0, "jain": 0.0, "max_load": 0.0, "utility": 0.0}
     tp_floored = np.maximum(tp, _TP_FLOOR_MBPS)
+    served = tp[tp > 0.0]
     return {
         "sum_mbps": float(tp.sum()),
         "mean_mbps": float(tp.mean()),
-        "edge_mbps": float(np.percentile(tp, 5)),   # cell-edge (5th pct) user rate
+        "median_mbps": float(np.median(tp)),
+        "edge_mbps": float(np.percentile(tp, 5)),   # cell-edge (5th pct), incl. outage
+        "served_edge_mbps": float(np.percentile(served, 5)) if served.size else 0.0,
         "min_mbps": float(tp.min()),
+        "outage_frac": float(np.mean(tp <= 0.0)),   # fraction of UEs with no service
         "jain": float(tp.sum() ** 2 / (tp.size * np.sum(tp ** 2) + 1e-30)),
         "max_load": float(loads.max()) if loads.size else 0.0,
         "utility": float(np.log(tp_floored).sum()),  # proportional-fair objective

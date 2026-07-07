@@ -11,3 +11,4 @@ openairinterface5g/
 __pycache__/
 *.pyc
 .venv/
+experiments/results/scene/
