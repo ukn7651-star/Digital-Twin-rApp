@@ -239,6 +239,27 @@ def _plots(out, rows, ue_tp, load_rows, scene_names):
     ax.grid(True, axis="y", alpha=0.3); ax.legend()
     fig.tight_layout(); fig.savefig(out / "fig_gains_by_scene.png", dpi=130); plt.close(fig)
 
+    # Fig 5: median gain vs baseline outage (what limits the gain)
+    xo = np.array([r["base_outage"] * 100 for r in rows], float)
+    yg = np.array([r["gain_median_pct"] for r in rows], float)
+    m = np.isfinite(xo) & np.isfinite(yg); xo, yg = xo[m], yg[m]
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for scene in scene_names:
+        idx = [i for i, r in enumerate([r for r in rows]) if r["scene"] == scene]
+        ax.scatter([xo[i] for i in idx], [yg[i] for i in idx], s=36,
+                   edgecolor="k", lw=0.4, label=scene, zorder=3)
+    if xo.size >= 3 and np.std(xo) > 0:
+        rr = np.corrcoef(xo, yg)[0, 1]; b1, b0 = np.polyfit(xo, yg, 1)
+        xx = np.linspace(xo.min(), xo.max(), 50)
+        ax.plot(xx, b1 * xx + b0, "k--", lw=1.5, zorder=2,
+                label=f"fit (r={rr:.2f}, $R^2$={rr*rr:.2f})")
+    ax.axhline(0, color="0.7", lw=0.8, zorder=1)
+    ax.set_xlabel("baseline outage rate [%]")
+    ax.set_ylabel("rApp median throughput gain [%]")
+    ax.set_title("rApp gain vs baseline outage")
+    ax.grid(True, alpha=0.3); ax.legend(fontsize=8)
+    fig.tight_layout(); fig.savefig(out / "fig_scatter_gain.png", dpi=130); plt.close(fig)
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
