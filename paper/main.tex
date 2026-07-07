@@ -1,6 +1,5 @@
-%% IEEE conference paper -- compile with pdfLaTeX (e.g. on Overleaf).
-%% Upload this file together with the three fig_*.png in this folder.
-%% (It also compiles without them, via \IfFileExists.)
+%% IEEE conference paper -- compile with pdfLaTeX + BibTeX.
+%% Double-blind submission. Uses refs.bib.
 \documentclass[conference]{IEEEtran}
 \IEEEoverridecommandlockouts
 
@@ -9,154 +8,59 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{xcolor}
-\usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning}
 \usepackage{url}
 \usepackage{algorithm}
+\usepackage{tikz}
+\usetikzlibrary{positioning, shapes.geometric, arrows.meta, fit, calc}
 
-% --- helpers ---
 \newcommand{\y}{\checkmark}
 \newcommand{\n}{$\times$}
-% include a figure, or a labeled box if the file is absent
 \newcommand{\figorbox}[2]{%
   \IfFileExists{#1}{\includegraphics[width=\columnwidth]{#1}}%
   {\fbox{\parbox[c][3.2cm][c]{0.92\columnwidth}{\centering \texttt{#2}}}}}
 
 \begin{document}
 
-\title{An Open, Site-Specific, Multi-Cell 5G Digital Twin:\\
-Ray-Traced Throughput, an OpenAirInterface-Grounded\\
-Link Model, and a Closed-Loop Traffic-Steering rApp}
+\title{Closing the Fidelity Gap:\\Real-Stack-Grounded Link Abstraction\\for 5G Digital Twins}
 
-\author{\IEEEauthorblockN{Author Name(s)}
-\IEEEauthorblockA{\textit{Affiliation} \\
-\textit{Organization}\\
-City, Country \\
-email@domain}}
+\author{\IEEEauthorblockN{}%
+\IEEEauthorblockA{}}
 
 \maketitle
 
 \begin{abstract}
-Network digital twins are increasingly used to develop and validate O-RAN control
-applications before deployment, but open platforms trade off protocol-stack
-realism, site-specific propagation, network scale, and closed-loop control---none
-combines all four. We present an open-source, CPU-only digital twin that (i)~builds
-a multi-cell, multi-user 5G scene from OpenStreetMap and ray-traces every
-cell-to-user channel with NVIDIA Sionna~RT; (ii)~computes per-user downlink
-throughput from a link model \emph{measured on OpenAirInterface's (OAI) real
-physical layer}, using per-resource-element SINR with EESM link abstraction;
-(iii)~hosts an O-RAN traffic-steering rApp; and (iv)~grounds per-link realism by
-injecting the exact ray-traced channel into a live OAI gNB--UE link. Across three
-cities and eight random layouts each (24 runs), the rApp raises median per-user
-throughput by $9.5\pm11.3\%$ and served cell-edge throughput by $22.4\pm24.8\%$,
-improves Jain fairness by $9.1\%$, and reduces peak cell load by $0.75$ users,
-while leaving aggregate rate and coverage-limited outage unchanged. A configuration
-sweep shows per-user throughput rising $1.7$--$1.8\times$ as inter-cell load falls
-to idle. We outline the path to a fully integrated multi-UE closed loop, and release
-the platform, harness, and results as open source; everything runs on commodity CPU
-hardware.
+Network digital twins are essential for developing O-RAN rApps before deployment, yet open platforms force a trade-off among protocol-stack realism, site-specific propagation, network scale, and closed-loop control---none combines all four. We address the fidelity gap at its root: the link-to-system (L2S) abstraction. Instead of idealized SINR-to-throughput curves, our twin maps per-resource-element SINR to throughput through a curve \emph{measured on OpenAirInterface's (OAI) real physical layer} (\texttt{nr\_dlsim} with LDPC decoding), so network-scale KPIs inherit a real receiver's implementation losses. We quantify this gap: at 10\,dB SINR, the OAI curve delivers 2.16\,bits/s/Hz---38\% below the Shannon bound (3.46\,bits/s/Hz)---and its MCS steps are non-uniform, spanning up to 2.2\,dB versus the $\sim$1\,dB of an idealized staircase. The twin builds multi-cell, multi-user 5G scenes from OpenStreetMap, ray-traces every cell-to-user channel with Sionna~RT, and hosts a proportional-fair traffic-steering rApp. Two bridges connect the analytical twin to a live OAI stack: exact ray-traced channel injection and a per-UE interference-as-noise-floor mapping. Across three cities and eight random layouts each (24 runs), the rApp raises median per-user throughput by $9.5\pm11.3\%$ and served cell-edge throughput by $22.4\pm24.8\%$, improves Jain fairness by $9.1\%$, and reduces peak cell load by $0.75$ users, while leaving aggregate rate and coverage-limited outage unchanged. We further find that the rApp's gain is limited by baseline outage ($r{=}{-}0.42$) rather than by raw load imbalance: steering helps only where covered load can be rebalanced---a distinction a single-scenario study would miss.
 \end{abstract}
 
 \begin{IEEEkeywords}
-digital twin, 5G NR, OpenAirInterface, Sionna RT, ray tracing, O-RAN, rApp,
-traffic steering, link abstraction.
+Digital twin, 5G NR, OpenAirInterface, link-to-system abstraction, O-RAN, rApp, traffic steering.
 \end{IEEEkeywords}
 
+%=============================================================================
 \section{Introduction}
-The digital twin is emerging as the environment in which AI/ML-driven RAN control
-(O-RAN rApps/xApps) is trained and validated before it touches a production
-network, and its value hinges on data fidelity. Open tooling splits into camps that
-do not meet: system-level simulators scale to many cells but abstract the physical
-(PHY) layer~\cite{ns3sionna}; OAI-based emulators execute the real 5G-NR
-stack~\cite{oai} but, with realistic propagation, cover a single link; commercial
-twins close the rApp loop but are proprietary.
+%=============================================================================
+The digital twin is becoming the environment in which AI/ML-driven RAN control---O-RAN rApps and xApps---is trained and validated before it touches a production network~\cite{dt_survey}. Its value hinges on data fidelity: a traffic-steering rApp decides which cell serves each user from signal, interference, and load; those quantities depend jointly on 3D propagation (site-specific), on neighbouring cells (multi-cell), and on a link model that turns SINR into a real modulation-and-coding outcome (protocol-stack realism). Evaluating such a controller requires all of these together, and---because random deployments vary widely---across many layouts rather than a single scenario. A twin that reports a single headline number from one scenario can mislead: our own single-seed pilot suggested a uniformly large rApp gain, which a 24-run study tempered into a robust-direction, variable-magnitude result.
 
-The fidelity that matters for control-application development is not merely a
-faithful channel: it is the end-to-end mapping from site geometry to the KPIs a
-controller observes and acts on. A traffic-steering rApp, for example, decides
-which cell serves each user from signal, interference, and load; those quantities
-depend jointly on 3D propagation (site-specific), on the neighbouring cells
-(multi-cell), and on a link model that turns SINR into a real modulation-and-coding
-outcome (protocol-stack realism). Evaluating such a controller therefore requires
-all of these together, and---because random deployments vary widely---across many
-layouts rather than a single scenario. This motivates both our platform and our
-evaluation methodology.
+Open tooling splits into camps that do not meet. System-level simulators scale to many cells but abstract the physical (PHY) layer with idealized SINR-to-throughput curves. OAI-based emulators execute the real 5G-NR stack but, with realistic propagation, cover a single link. Commercial twins close the rApp loop but are proprietary. No open platform combines a real protocol stack, a site-specific ray-traced channel, a multi-cell network, and a closed control loop (Table~\ref{tab:related}).
 
-Four capabilities matter \emph{simultaneously} for a useful RAN twin---a real
-protocol stack, a site-specific ray-traced channel, a multi-cell network, and a
-closed control loop---and no open platform combines them. We contribute such a
-platform---integrating the four as components---with a statistically rigorous,
-honest evaluation: the multi-cell twin and its rApp run today, the real stack is
-grounded per link, and the remaining full-stack loop is designed end-to-end
-(Sec.~\ref{subsec:fullstack}). Our contributions are:
+A subtler gap concerns the \emph{L2S abstraction} itself. System-level evaluation cannot afford full PHY processing per user, so it relies on a mapping from SINR to block-error-rate (BLER). Open simulators use idealized or 3GPP-calibrated curves; we obtain ours from OAI's real receiver (\texttt{nr\_dlsim} with LDPC decoding and rate matching), so network-scale KPIs inherit a real implementation's losses---particularly at MCS transition boundaries where control decisions are sensitive. At 10\,dB SINR, the OAI-measured curve yields 2.16\,bits/s/Hz, while the Shannon bound gives 3.46\,bits/s/Hz---a 38\% gap that an idealized curve would ignore (Fig.~\ref{fig:linkcurve}).
+
+This paper contributes:
 \begin{enumerate}
-\item An open, CPU-only, multi-cell/multi-user twin whose throughput is grounded in
-OAI's measured PHY, driven by per-resource-element SINR and EESM.
-\item A traffic-steering rApp evaluated over 24 runs across three cities, with
-robust statistics and explicit outage accounting.
-\item Verified injection of the exact ray-traced channel into a live OAI link, plus
-a twin-to-OAI inter-cell-interference noise-floor bridge, and a design for the
-full-stack closed loop (multi-UE Standalone, FlexRIC KPM, and the rApp acting on
-OAI) that these components enable.
-\item A reproducible experiment harness and results, released as open source.
+\item An \emph{OAI-grounded L2S abstraction}: the SINR-to-throughput curve is measured from OAI's real PHY, not idealized. We quantify the implementation loss (38\% below Shannon at 10\,dB) and show its MCS steps are non-uniform, spanning up to 2.2\,dB versus the $\sim$1\,dB of an idealized staircase.
+\item An open, CPU-only, multi-cell/multi-user digital twin: OpenStreetMap geometry $\to$ Sionna~RT ray tracing $\to$ per-UE/cell throughput, with a swappable network source for real cell-site data.
+\item Two twin-to-real-stack bridges: (a)~exact ray-traced channel injection into a live OAI gNB--UE link, and (b)~a per-UE interference-as-noise-floor mapping that lets a single-link OAI run reflect its multi-cell context.
+\item A rigorous multi-scene, multi-seed evaluation (24 runs across 3 cities) of a proportional-fair traffic-steering rApp, with honest reporting of variance and outage, a load-sensitivity sweep separating coverage-limited and interference-limited regimes, and a correlation analysis showing rApp gain is limited by baseline outage rather than by raw load imbalance.
 \end{enumerate}
 
-\section{Background}
-\textbf{Link-to-system abstraction.} System-level evaluation cannot afford full PHY
-processing per user, so it relies on link-to-system (L2S) mapping: a link-level
-simulator characterises the SINR-to-block-error-rate (BLER) relation for each MCS,
-and an effective-SINR mapping collapses a frequency-selective SINR vector into a
-single AWGN-equivalent value that indexes those curves. EESM is the widely used
-one-parameter form. The accuracy of L2S hinges on how faithful the underlying
-SINR-to-BLER curves are; we obtain ours from OpenAirInterface's real receiver
-rather than from idealised expressions.
-
-\textbf{O-RAN control loops.} The O-RAN architecture externalises RAN control into
-applications: xApps on the near-real-time RIC (tens of ms, via E2) and rApps on the
-non-real-time RIC (seconds and above, via O1/A1). Traffic steering and load
-balancing are canonical rApp use cases, typically realised by adjusting per-cell
-handover offsets (cell-individual offsets, CIO). A digital twin lets such an rApp be
-trained and validated before it is allowed to touch a live network.
-
-\textbf{Twin fidelity.} A twin used to rank or tune control policies must reproduce
-not only average link quality but the joint distribution of the KPIs a controller
-acts on, across the deployment randomness it will meet in the field. This makes
-multi-scene, multi-layout evaluation---and honest reporting of variance and
-outage---a fidelity requirement, not a nicety.
-
+%=============================================================================
 \section{Related Work}
-Table~\ref{tab:related} positions the closest open efforts on the four axes.
-Every existing open platform is missing at least one. OWDT~\cite{owdt} pairs OAI
-with Sionna~RT for a faithful single gNB--UE link but is single-cell and
-monitor-only. Tiny-Twin~\cite{tinytwin} runs a real OAI stack for multiple UEs with
-a RIC loop, but single-cell from replayed channel traces (it lists inter-cell
-interference as future work). Orange's RIC-TaaP/ns-O-RAN and OpenTwin~\cite{opentwin}
-close rApp loops across many cells---OpenTwin adds twin-to-real KPM
-self-correction---but on ns-3's abstracted PHY. Recent OAI+FlexRIC
-work~\cite{oaiho} closes handover loops across real cells but over the air, without
-a site-specific ray-traced channel. Within OAI, an emerging ray-tracing channel
-emulator feeds the virtual-time simulator VRTSim (multi-node on its roadmap) and is
-a natural backend our injection step can adopt. The asterisk on our fourth axis is
-deliberate (Sec.~\ref{sec:disc}): the four are integrated as \emph{components} of
-one platform, with the rApp loop evaluated on the analytical twin and the real
-stack grounded per link; full rApp-driven multi-cell OAI is outlined as the next
-step in Sec.~\ref{subsec:fullstack}.
+%=============================================================================
+\textbf{Open RAN digital-twin platforms.} Table~\ref{tab:related} positions the closest open efforts on four axes. OWDT~\cite{owdt} pairs OAI with Sionna~RT for a faithful single gNB--UE link but is single-cell and monitor-only. Tiny-Twin~\cite{tinytwin} runs a real OAI stack for multiple UEs with a RIC loop, but single-cell from replayed channel traces. Orange's RIC-TaaP/ns-O-RAN and OpenTwin~\cite{opentwin} close rApp loops across many cells---OpenTwin adds twin-to-real KPM self-correction---but on ns-3's abstracted PHY. Recent OAI+FlexRIC work~\cite{oaiho} closes handover loops across real cells but over the air, without a site-specific ray-traced channel. Within OAI, an emerging ray-tracing channel emulator feeds the virtual-time simulator VRTSim (multi-node on its roadmap). Commercial twins (e.g., Rimedo Labs' NDT with VIAVI) close the loop but are neither open nor reproducible.
 
-Commercial network digital twins close this gap in proprietary form: Rimedo Labs'
-NDT coupled with the VIAVI emulator trains and validates traffic-steering rApps
-before deployment, reporting double-digit throughput gains. Such tools demonstrate
-the industrial value of the closed loop but are neither open nor reproducible; our
-aim is an open, commodity-hardware counterpart whose every layer---geometry,
-propagation, link model, and control---can be inspected and re-run.
+\textbf{Link-to-system abstraction.} System-level simulation~\cite{tr36814} relies on L2S mapping: a link-level simulator characterises SINR-to-BLER for each MCS, and an effective-SINR mapping (EESM~\cite{eesm,eesm_orig}) collapses a frequency-selective SINR vector into an AWGN-equivalent value. The distinction here is that our lookup is measured from OAI's own PHY rather than from idealised curves, so network-scale KPIs inherit a real receiver's implementation losses. Our multi-cell interference-as-noise-floor bridge is a site-specific generalisation of the 3GPP OFDMA channel noise generator (OCNG)~\cite{ocng}, which loads unused resources to emulate other-cell activity; we instead derive each UE's interference from the ray-traced neighbour channels.
 
-Two design choices distinguish our modelling from standard system-level
-practice~\cite{eesm}. First, the SINR-to-MCS lookup is measured from OAI's own PHY
-(\texttt{nr\_dlsim}) rather than from idealised curves, so the network-scale KPIs
-inherit a real receiver's implementation losses. Second, our multi-cell
-interference-as-noise-floor bridge is a site-specific generalisation of the 3GPP
-OFDMA channel noise generator (OCNG)~\cite{ocng}: instead of loading unused
-resources with a generic pattern, we derive each UE's interference from the
-ray-traced neighbour channels.
+\textbf{O-RAN control loops.} The O-RAN architecture~\cite{oran,orantraffic} externalises RAN control: xApps on the near-RT RIC (tens of ms, via E2) and rApps on the non-RT RIC (seconds and above, via O1/A1). Traffic steering via cell-individual offsets (CIO) is a canonical rApp use case~\cite{dt_survey}. A digital twin lets such an rApp be trained and validated before deployment.
 
 \begin{table}[t]
 \caption{Open RAN digital-twin platforms on four axes.}
@@ -168,13 +72,13 @@ ray-traced neighbour channels.
 Platform & Real & Site & Multi & Closed \\
  & stack & RT & cell & loop \\
 \midrule
-OWDT~\cite{owdt}                 & \y & \y & \n & \n \\
-Tiny-Twin~\cite{tinytwin}        & \y & \n$^{a}$ & \n & \y \\
-Orange ns-O-RAN / RIC-TaaP       & \n$^{b}$ & \y & \y & \y \\
-OpenTwin~\cite{opentwin}         & \n$^{b}$ & \n & \y & \y \\
-OAI+FlexRIC handover~\cite{oaiho}& \y & \n$^{c}$ & \y & \y \\
-OAI VRTSim / RT emulator         & \y & \y & \n$^{d}$ & \n \\
-\textbf{This work}               & \y & \y & \y & \y$^{*}$ \\
+OWDT~\cite{owdt} & \y & \y & \n & \n \\
+Tiny-Twin~\cite{tinytwin} & \y & \n$^{a}$ & \n & \y \\
+Orange ns-O-RAN / RIC-TaaP & \n$^{b}$ & \y & \y & \y \\
+OpenTwin~\cite{opentwin} & \n$^{b}$ & \n & \y & \y \\
+OAI+FlexRIC~\cite{oaiho} & \y & \n$^{c}$ & \y & \y \\
+OAI VRTSim / RT emulator & \y & \y & \n$^{d}$ & \n \\
+\textbf{This work} & \y & \y & \y & \y$^{*}$ \\
 \bottomrule
 \end{tabular}
 \\[2pt]
@@ -183,112 +87,104 @@ $^{a}$replayed traces; $^{b}$ns-3 abstract PHY; $^{c}$over-the-air;
 $^{d}$multi-node on roadmap; $^{*}$components integrated, full loop in progress.
 \end{table}
 
-\section{System Architecture}
-The platform is a pipeline with two consumers of one physics substrate
-(Fig.~\ref{fig:arch}): a fast analytical layer that covers every cell and UE, and a
-real-stack layer that grounds sampled links in OAI. Both are driven by the same
-ray-traced channel, and the network data source is swappable so that synthetic and
-real deployments run through an identical path.
+%=============================================================================
+\section{Digital Twin Architecture}
+%=============================================================================
+The platform is a pipeline with two consumers of one physics substrate (Fig.~\ref{fig:arch}): a fast analytical layer that covers every cell and UE, and a real-stack layer that grounds sampled links in OAI. Both are driven by the same ray-traced channel, and the network data source is swappable so that synthetic and real deployments run through an identical path.
 
 \begin{figure*}[t]
 \centering
-\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
-  font=\small, >=Latex, node distance=6mm and 10mm,
-  box/.style={draw,rounded corners,align=center,inner sep=4pt,minimum height=9mm,fill=blue!5},
-  dat/.style={draw,align=center,inner sep=4pt,minimum height=9mm,fill=black!5},
-  oai/.style={draw,rounded corners,align=center,inner sep=4pt,minimum height=9mm,fill=orange!15}]
-  \node[dat] (osm) {OpenStreetMap\\bbox};
-  \node[dat,above=of osm] (net) {Network source\\(random / OpenCelliD)};
-  \node[box,right=of osm] (scene) {3D scene\\(Mitsuba)};
-  \node[box,right=of scene] (rt) {Sionna RT\\ray tracing};
-  \node[dat,right=of rt] (cfr) {ray-traced\\CFR};
-  \node[oai,below=14mm of rt] (dlsim) {OAI \texttt{nr\_dlsim}\\(offline SINR$\to$MCS curve)};
-  % fast analytical layer (top branch)
-  \node[box,right=18mm of cfr,yshift=10mm] (kpi) {KPI engine:\\per-RE SINR (MRT)+EESM\\$\to$ OAI-measured MCS};
-  \node[box,right=of kpi] (rapp) {Traffic-steering\\rApp (CIO)};
-  \node[dat,right=of rapp] (kout) {per-UE / per-cell\\throughput};
-  % real-stack grounding (bottom branch)
-  \node[oai,right=18mm of cfr,yshift=-14mm] (oai) {OAI gNB--UE link\\(rfsim, injected channel)};
-  \node[oai,right=of oai] (floor) {per-UE interference\\noise-floor bridge};
-  % arrows
-  \draw[->] (net) -- (scene); \draw[->] (osm) -- (scene);
-  \draw[->] (scene) -- (rt);  \draw[->] (rt) -- (cfr);
-  \draw[->] (cfr.east) -- (kpi.west); \draw[->] (kpi) -- (rapp); \draw[->] (rapp) -- (kout);
-  \draw[->] (cfr.east) -- (oai.west);
-  \draw[->] (dlsim.east) -| ([xshift=9mm]cfr.east) |- ([yshift=-2mm]kpi.west);
-  \draw[->] (floor) -- (oai);
-  % layer captions
-  \node[font=\itshape\footnotesize, above=1mm of kpi] {fast analytical layer (all cells / UEs)};
-  \node[font=\itshape\footnotesize, below=1mm of oai] {real-stack grounding (sampled links)};
-\end{tikzpicture}}
-\caption{Architecture. OpenStreetMap geometry and a swappable network source feed
-Sionna~RT; the ray-traced channel drives (top) an analytical multi-cell KPI engine
-and the traffic-steering rApp, and (bottom) a live OAI link over the exact channel
-with a per-UE interference noise floor.}
+  block/.style={draw, rounded corners=2pt, minimum width=1.7cm, minimum height=0.75cm, align=center, font=\footnotesize, inner sep=3pt},
+  bigblock/.style={draw, rounded corners=2pt, minimum width=2.1cm, minimum height=0.75cm, align=center, font=\footnotesize, inner sep=3pt},
+  arr/.style={-{Stealth[length=4pt]}, thick},
+  lbl/.style={font=\scriptsize, text=gray!60!black}
+]
+\node[block, fill=blue!8] (osm) {OSM\\bbox};
+\node[block, fill=blue!8, right=0.3cm of osm] (scene) {3D Mitsuba\\scene};
+\node[block, fill=blue!8, right=0.3cm of scene] (rt) {Sionna RT\\ray tracing};
+\node[bigblock, fill=blue!15, right=0.3cm of rt] (cfr) {Ray-traced\\CFR};
+\draw[arr] (osm) -- (scene);
+\draw[arr] (scene) -- (rt);
+\draw[arr] (rt) -- (cfr);
+\node[block, fill=green!10, below left=0.8cm and 0.1cm of cfr] (kpi) {KPI engine\\(per-RE SINR\\+ EESM)};
+\node[block, fill=green!10, below=0.8cm of cfr] (rapp) {Traffic-\\steering\\rApp (CIO)};
+\node[block, fill=green!10, below right=0.8cm and 0.1cm of cfr] (bridge) {OAI\\bridges};
+\draw[arr] (cfr) -- (kpi);
+\draw[arr] (cfr) -- (rapp);
+\draw[arr] (cfr) -- (bridge);
+\node[block, fill=green!18, below=0.45cm of kpi] (kpio) {Per-UE/cell\\throughput};
+\node[block, fill=green!18, below=0.45cm of rapp] (rappo) {Steering\\decisions};
+\node[block, fill=green!18, below=0.45cm of bridge] (oaio) {Live OAI\\gNB--UE link};
+\draw[arr] (kpi) -- (kpio);
+\draw[arr] (rapp) -- (rappo);
+\draw[arr] (bridge) -- (oaio);
+\draw[arr, dashed] (rappo.west) to[bend left=30] node[lbl, above, sloped] {CIO} (kpi.east);
+\node[block, fill=orange!12, left=0.4cm of kpi] (curve) {OAI link\\curve $\Phi_{\mathrm{OAI}}$};
+\draw[arr, dashed] (curve) -- (kpi);
+\node[lbl, above=0.05cm of osm] {Geometry};
+\node[lbl, above=0.05cm of rt] {Propagation};
+\node[lbl, above=0.05cm of cfr] {Channel};
+\node[lbl, below=0.05cm of oaio] {Real stack};
+\node[lbl, below=0.05cm of kpio] {Analytical};
+\end{tikzpicture}
+\caption{Architecture. OpenStreetMap geometry and a swappable network source feed Sionna~RT; the ray-traced channel drives (left) an analytical multi-cell KPI engine and the traffic-steering rApp, and (right) a live OAI link over the exact channel with a per-UE interference noise floor. The OAI-measured link curve $\Phi_{\mathrm{OAI}}$ grounds the analytical throughput in a real receiver.}
 \label{fig:arch}
 \end{figure*}
 
-\textbf{Geometry.} A WGS84 bounding box drives an OpenStreetMap (Overpass) query;
-footprints are extruded into a 3D Mitsuba scene with ITU materials.
+\textbf{Geometry.} A WGS84 bounding box drives an OpenStreetMap (Overpass) query; footprints are extruded into a 3D Mitsuba scene with ITU materials.
 
-\textbf{Network.} Cells and UEs come from a swappable source: a seeded random
-generator ($N$ sites $\times$ 3 sectors, uniform UE drops) or a CSV source for real
-coordinates (e.g., OpenCelliD).
+\textbf{Network.} Cells and UEs come from a swappable source: a seeded random generator ($N$ sites $\times$ 3 sectors, uniform UE drops) or a CSV source for real coordinates (e.g., OpenCelliD).
 
-\textbf{Channel.} Sionna~RT~\cite{sionnart} places one transmitter per cell (3GPP sector pattern,
-planar array, downtilt) and one receiver per UE and computes the channel frequency
-response for every cell-to-UE link over an OFDM resource grid.
+\textbf{Channel.} Sionna~RT~\cite{sionnart} places one transmitter per cell (3GPP sector pattern, planar array, downtilt) and one receiver per UE and computes the channel frequency response for every cell-to-UE link over an OFDM resource grid. The ray tracer captures reflections, diffractions, and scattering from building geometry, producing a frequency-selective channel that encodes the specific site's propagation environment. Ray-tracing depth is set to 3, balancing fidelity against CPU runtime.
 
-\textbf{KPI engine.} Let $\mathbf{H}_{u,c}(k)\in\mathbb{C}^{N_r\times N_t}$ be the
-ray-traced channel of link $c\!\to\!u$ on resource element (RE) $k$, and
-$P^{\mathrm{tx}}_c$ the cell transmit power. The wideband received power is
-$P^{\mathrm{rx}}_{u,c}=P^{\mathrm{tx}}_c\,\overline{\lVert\mathbf{H}_{u,c}\rVert_F^2}$,
-where the bar denotes averaging over antennas and REs. Each UE associates to the
-cell maximising received power biased by a cell-individual offset (CIO), the
-O-RAN control knob:
+\textbf{Swappable network source.} The network source is an interface: a seeded random generator for controlled experiments, or a CSV reader for real cell-site coordinates (e.g., OpenCelliD). Both feed the same pipeline, so the twin can be calibrated on synthetic data and run on real site data without code changes.
+
+%=============================================================================
+\section{OAI-Grounded KPI Engine}
+\label{sec:kpi}
+%=============================================================================
+The KPI engine is where the twin's fidelity is grounded. Let $\mathbf{H}_{u,c}(k)\in\mathbb{C}^{N_r\times N_t}$ be the ray-traced channel of link $c\!\to\!u$ on resource element (RE) $k$, and $P^{\mathrm{tx}}_c$ the cell transmit power. The wideband received power is $P^{\mathrm{rx}}_{u,c}=P^{\mathrm{tx}}_c\,\overline{\lVert\mathbf{H}_{u,c}\rVert_F^2}$, where the bar denotes averaging over antennas and REs. Each UE associates to the cell maximising received power biased by a cell-individual offset (CIO), the O-RAN control knob:
 \begin{equation}
 s(u)=\arg\max_{c}\; P^{\mathrm{rx}}_{u,c}\cdot 10^{\,\mathrm{CIO}_c/10}.
 \label{eq:assoc}
 \end{equation}
-Because each cell serves one UE at a time under airtime sharing, the optimal
-single-stream precoder is the matched filter, so the serving per-RE gain is the
-largest singular value $\sigma_{\max}$ of the serving channel. With flat per-RE
-transmit power $p_c$, a neighbour load factor $\rho\in[0,1]$, and thermal noise
-$N_0=kTB\cdot\mathrm{NF}$, the per-RE SINR is
+Because each cell serves one UE at a time under airtime sharing, the optimal single-stream precoder is the matched filter, so the serving per-RE gain is the largest singular value $\sigma_{\max}$ of the serving channel. With flat per-RE transmit power $p_c$, a neighbour load factor $\rho\in[0,1]$, and thermal noise $N_0=kTB\cdot\mathrm{NF}$, the per-RE SINR is
 \begin{equation}
 \gamma_u(k)=\frac{p_{s}\,\sigma_{\max}\!\big(\mathbf{H}_{u,s}(k)\big)^2}
 {\rho\sum_{c\neq s}\frac{p_c}{N_t}\lVert\mathbf{H}_{u,c}(k)\rVert_F^2+N_0}.
 \label{eq:sinr}
 \end{equation}
-The per-RE SINRs are compressed to one effective SINR by exponential effective
-SINR mapping (EESM), which preserves the frequency selectivity the ray tracer
-produces:
+The per-RE SINRs are compressed to one effective SINR by exponential effective SINR mapping (EESM), which preserves the frequency selectivity the ray tracer produces:
 \begin{equation}
 \gamma^{\mathrm{eff}}_u=-\beta\,\ln\!\Big(\tfrac{1}{K}\textstyle\sum_{k}
 e^{-\gamma_u(k)/\beta}\Big),
 \label{eq:eesm}
 \end{equation}
-with per-modulation $\beta$ calibratable by a single scale factor. The effective
-SINR is mapped to a modulation-and-coding scheme (MCS) and spectral efficiency
-$\eta_u$ through a curve $\Phi_{\mathrm{OAI}}$ \emph{measured offline from OAI's
-\texttt{nr\_dlsim}} (real LDPC decoding and rate matching), i.e.\
-$(m_u,\eta_u)=\Phi_{\mathrm{OAI}}(\gamma^{\mathrm{eff}}_u)$. On a static
-full-buffer snapshot, proportional-fair scheduling reduces to equal airtime, so
-the per-UE throughput is
+with per-modulation $\beta$ calibratable by a single scale factor. The EESM $\beta$ values are set per modulation order (QPSK, 16QAM, 64QAM) following established link-abstraction literature~\cite{eesm_orig}, and a single \texttt{eesm\_beta\_scale} parameter allows calibration against OAI in-the-loop ground truth.
+
+\textbf{OAI-measured link curve.} The effective SINR is mapped to a modulation-and-coding scheme (MCS) and spectral efficiency $\eta_u$ through a curve $\Phi_{\mathrm{OAI}}$ \emph{measured offline from OAI's \texttt{nr\_dlsim}} (real LDPC decoding and rate matching), i.e.\ $(m_u,\eta_u)=\Phi_{\mathrm{OAI}}(\gamma^{\mathrm{eff}}_u)$. This is the key distinction from prior system-level twins: instead of an idealised staircase or a 3GPP-calibrated analytical expression, the SINR-to-throughput mapping carries a real receiver's implementation losses---including LDPC decoding margins, rate-matching overhead, and the non-uniform SINR spacing between MCS transitions that a real stack exhibits. The curve is measured once by sweeping SNR $\times$ MCS through \texttt{nr\_dlsim} and recording the lowest SNR at which first-transmission BLER stays within the target (10\%); the resulting staircase (Fig.~\ref{fig:linkcurve}) is a monotone lookup table indexed by effective SINR.
+
+\textbf{Quantifying the implementation loss.} Fig.~\ref{fig:linkcurve} compares the OAI-measured curve against the Shannon bound and an idealized uniform-staircase. At 10\,dB SINR, the OAI curve delivers 2.16\,bits/s/Hz---38\% below Shannon (3.46\,bits/s/Hz). In relative terms the loss is largest at low SINR and narrows toward high SINR, but in absolute terms it grows to ${\sim}1.6$\,bits/s/Hz at 64QAM, as LDPC and rate-matching overhead accumulate. Critically, the MCS transition spacing is non-uniform: the QPSK$\to$16QAM boundary spans 2.2\,dB, while adjacent QPSK steps are $\sim$1\,dB. An idealized staircase with uniform 1\,dB steps would misplace this transition by over 1\,dB, causing a system-level twin to assign the wrong MCS to boundary users---exactly the users a traffic-steering rApp aims to help.
+
+\begin{figure}[t]
+\centering
+\figorbox{fig_link_curve.png}{fig\_link\_curve.png}
+\caption{OAI-measured link curve $\Phi_{\mathrm{OAI}}$ vs.\ Shannon bound and an idealized (Shannon-optimal) staircase. The shaded region is the implementation loss (38\% at 10\,dB). Non-uniform MCS step spacing reflects a real LDPC decoder.}
+\label{fig:linkcurve}
+\end{figure}
+
+On a static full-buffer snapshot, proportional-fair scheduling reduces to equal airtime, so the per-UE throughput is
 \begin{equation}
 R_u=\frac{B_{s}}{K_{s}}\,\eta_u\,(1-\mathrm{BLER}_{\mathrm{tgt}}),
 \label{eq:rate}
 \end{equation}
 where $B_s$ is the serving cell bandwidth and $K_s$ its number of attached UEs.
 
-\textbf{Traffic-steering rApp.} The rApp adjusts the CIO vector to maximise the
-proportional-fair utility $U(\mathrm{CIO})=\sum_u\log R_u$ (Alg.~\ref{alg:ts}).
-Because $U$ is piecewise-constant in the CIOs (it changes only when a UE's serving
-cell flips), a fixed small step stalls on plateaus; we therefore line-search each
-cell's CIO over a grid (coordinate ascent), which is monotonically non-decreasing
-in $U$ by construction. Raising a cell's CIO pulls boundary UEs in (absorbing
-load); lowering it sheds them to neighbours.
+%=============================================================================
+\section{Traffic-Steering rApp}
+%=============================================================================
+The rApp adjusts the CIO vector to maximise the proportional-fair utility $U(\mathrm{CIO})=\sum_u\log R_u$ (Alg.~\ref{alg:ts}). Because $U$ is piecewise-constant in the CIOs (it changes only when a UE's serving cell flips), a fixed small step stalls on plateaus; we therefore line-search each cell's CIO over a grid (coordinate ascent), which is monotonically non-decreasing in $U$ by construction. Raising a cell's CIO pulls boundary UEs in (absorbing load); lowering it sheds them to neighbours.
 
 \begin{algorithm}[t]
 \caption{Proportional-fair traffic steering}
@@ -306,73 +202,37 @@ Eqs.~\eqref{eq:assoc}--\eqref{eq:rate}.
 \end{enumerate}
 \end{algorithm}
 
-\textbf{Real-stack grounding.} A bridge converts each link to time-domain taps
-injected into a live OAI gNB--UE link (a patch to OAI's channel module); a second
-bridge writes each UE's twin-computed inter-cell interference as a per-client OAI
-noise floor, so a single-link OAI run reflects its multi-cell context.
+Every KPI evaluation reuses the same engine with a \texttt{cio\_db} vector, so the control loop rides on the exact same twin used for the baseline. The rApp's output is a set of per-UE handover decisions that a real stack would execute via O1/telnet. The coordinate-ascent structure guarantees monotonic improvement in $U$ and converges in 2--3 sweeps, suitable for the non-RT RIC timescale.
 
+%=============================================================================
+\section{Twin-to-Real-Stack Bridges}
+\label{sec:bridges}
+%=============================================================================
+Two bridges connect the analytical twin to a live OAI stack, grounding per-link realism.
+
+\textbf{Channel injection.} A bridge converts a link's ray-traced channel frequency response to a sample-spaced impulse response (IFFT), retains the strongest causal taps, normalises them to unit energy, and maps each tap delay to a sample index. These taps override the rfsimulator's channel through a patch to OAI's channel module (\texttt{oai\_rt\_inject\_channel} in \texttt{random\_channel.c}). When \texttt{OAI\_RT\_TAPS} is set, the gNB--UE link runs over the site-specific channel. Injection is confirmed in the gNB log (\texttt{[RT] injected 4 taps ... channel\_length=49}); the link then runs its PHY/MAC over the ray-traced channel.
+
+\textbf{Interference-as-noise-floor.} A live OAI rfsimulator link is single-cell. A second bridge computes, per UE, the inter-cell interference and expresses it as a noise-floor rise $\Delta N_u=10\log_{10}((I_u+N_0)/N_0)$, where $I_u$ is the load-scaled sum of non-serving cells' received power. This is written as a per-client OAI noise power, so a single-link run reflects its multi-cell context---a site-specific generalisation of OCNG~\cite{ocng}.
+
+%=============================================================================
 \section{Experimental Setup}
-\textbf{Scenes.} Berlin-Mitte (2{,}623 buildings), Paris-Op\'era (121),
-Manhattan-Midtown (119); geometry fetched/built once per scene and reused across
-seeds. \textbf{Random layouts.} Eight seeded layouts per scene---24 runs
-($323$\,s on one CPU server). \textbf{Configuration sweep.} Neighbour load factor
-in $\{0,0.25,0.5,0.75,1.0\}$ on a cached channel per scene. Radio and topology
-parameters are summarised in Table~\ref{tab:params}.
-\textbf{Metrics.} We report per-UE downlink throughput (median and mean); the
-\emph{served cell-edge} rate, defined as the 5th percentile among UEs with non-zero
-throughput (robust to coverage holes, unlike a raw 5th percentile which collapses
-to zero once outage exceeds $5\%$); the \emph{outage rate}, the fraction of UEs with
-zero throughput; Jain's fairness index over per-UE rates; and the peak cell load
-(largest number of UEs on any cell). rApp gains are reported as mean $\pm$ standard
-deviation over the eight seeds per scene, and pooled across all 24 runs; a gain is
-undefined (excluded) for a run whose baseline metric is zero.
+%=============================================================================
+\textbf{Scenes.} Berlin-Mitte (2{,}623 buildings), Paris-Op\'era (121), Manhattan-Midtown (119); geometry fetched/built once per scene and reused across seeds.
 
-\begin{table}[t]
-\caption{Radio and topology parameters.}
-\label{tab:params}
-\centering
-\footnotesize
-\begin{tabular}{@{}ll@{}}
-\toprule
-Parameter & Value \\
-\midrule
-Carrier frequency / bandwidth   & 3.5\,GHz / 20\,MHz \\
-Subcarrier spacing              & 30\,kHz (numerology 1) \\
-Cell transmit power             & 46\,dBm \\
-BS array / UE antennas          & $4\times1$ / 1 \\
-Receiver noise figure           & 7\,dB \\
-Ray-tracing interaction depth   & 3 \\
-Cells / UEs per layout          & 9 / 30 \\
-Default inter-cell load $\rho$   & 1.0 \\
-\bottomrule
-\end{tabular}
-\end{table}
+\textbf{Random layouts.} Eight seeded layouts per scene (9 cells, 30 UEs)---24 runs ($323$\,s on one CPU server). Radio: 3.5\,GHz, 20\,MHz, 46\,dBm, $4\times1$ BS array, NF 7\,dB, 30\,kHz SCS, ray-tracing depth 3, default inter-cell load $1.0$.
 
-\section{Results}\label{sec:results}
+\textbf{Configuration sweep.} Neighbour load factor in $\{0,0.25,0.5,0.75,1.0\}$ on a cached channel per scene.
+
+\textbf{Metrics.} We report per-UE downlink throughput (median and mean); the \emph{served cell-edge} rate, defined as the 5th percentile among UEs with non-zero throughput (robust to coverage holes, unlike a raw 5th percentile which collapses to zero once outage exceeds $5\%$); the \emph{outage rate}, the fraction of UEs with zero throughput; Jain's fairness index over per-UE rates; and the peak cell load (largest number of UEs on any cell). rApp gains are reported as mean $\pm$ standard deviation over the eight seeds per scene, and pooled across all 24 runs; a gain is undefined (excluded) for a run whose baseline metric is zero.
+
+%=============================================================================
+\section{Results}
+\label{sec:results}
+%=============================================================================
 \subsection{Traffic-steering rApp}
-Across 24 runs, relative to strongest-cell association
-(Tables~\ref{tab:results}--\ref{tab:abs}, Fig.~\ref{fig:cdf}), the rApp helps
-exactly the users a strongest-cell policy under-serves---improving the median,
-cell-edge, and fairness metrics---while shedding peak load. In absolute terms the
-overall median per-UE rate rises from $8.5$ to $9.2$\,Mbps and the served cell-edge
-rate from $3.5$ to $4.2$\,Mbps, whereas the mean is essentially unchanged
-($11.4$\,Mbps). Three honest observations follow: aggregate rate barely moves
-($+0.5\%$; the proportional-fair objective trades sum for fairness), outage is
-unchanged (steering relocates covered users, it does not create coverage), and
-variance is high (layout-dependent)---motivating multi-seed evaluation. The
-controller itself is inexpensive: the coordinate ascent reaches a local optimum in
-a few per-cell line-search sweeps, keeping the loop well within an rApp's
-non-real-time (seconds-and-above) budget.
+Across 24 runs, relative to strongest-cell association (Table~\ref{tab:results}, Fig.~\ref{fig:cdf}): the rApp helps the users a strongest-cell policy under-serves (median, cell-edge, fairness) and sheds peak load. Three honest observations: aggregate rate barely moves ($+0.5\%$; the proportional-fair objective trades sum for fairness), outage is unchanged (steering relocates covered users, it does not create coverage), and variance is high (layout-dependent)---motivating multi-seed evaluation.
 
-The per-scene breakdown is instructive (Fig.~\ref{fig:gains}). Berlin, the densest
-scene, shows the largest served cell-edge gain ($+41\%$): dense blockage produces
-stronger load imbalance for the rApp to exploit. Paris shows the smallest gain
-($+6\%$) and the highest outage ($23.8\%$): when many users lack coverage entirely,
-steering has little covered load to rebalance. Manhattan sits in between. The
-consistent signal across all three cities is that the direction of the effect is
-robust---median throughput, cell-edge rate, and fairness improve while peak load
-falls---whereas the \emph{magnitude} is strongly deployment-dependent, which is
-exactly the kind of conclusion a single-scenario study would misrepresent.
+The per-scene breakdown is instructive (Fig.~\ref{fig:gainsbar}). Berlin, the densest scene, shows the largest served cell-edge gain ($+41\%$): dense blockage produces stronger load imbalance for the rApp to exploit. Paris shows the smallest gain ($+6\%$) and the highest outage ($23.8\%$): when many users lack coverage entirely, steering has little covered load to rebalance. Manhattan sits in between. The consistent signal across all three cities is that the direction of the effect is robust---median throughput, cell-edge rate, and fairness improve while peak load falls---whereas the magnitude is strongly deployment-dependent, which is exactly the kind of conclusion a single-scenario study would misrepresent.
 
 \begin{table}[t]
 \caption{rApp gains vs.\ strongest-cell (mean $\pm$ std over seeds).}
@@ -383,29 +243,12 @@ exactly the kind of conclusion a single-scenario study would misrepresent.
 \toprule
 Metric & Overall & Berlin & Paris & Manh. \\
 \midrule
-Median tput gain    & $9.5\pm11.3\%$ & $10.5\%$ & $4.5\%$ & $13.3\%$ \\
-Served edge gain    & $22.4\pm24.8\%$& $41.0\%$ & $6.0\%$ & $20.2\%$ \\
-Jain fairness gain  & $9.1\pm11.0\%$ & $11.2\%$ & $4.4\%$ & $11.5\%$ \\
-Peak load (UEs)     & $-0.75$        & $-0.88$  & $-0.50$ & $-0.88$ \\
-Mean tput gain      & $0.5\pm5.8\%$  & $-0.7\%$ & $-0.3\%$& $2.5\%$ \\
-Outage change       & $0.0$ pts      & $0.0$    & $0.0$   & $0.0$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[t]
-\caption{Absolute per-UE throughput, baseline$\to$rApp
-(Mbps, mean over seeds).}
-\label{tab:abs}
-\centering
-\footnotesize
-\begin{tabular}{@{}lcccc@{}}
-\toprule
-Metric & Berlin & Paris & Manh. & Overall \\
-\midrule
-Median tput  & $8.3\!\to\!9.2$   & $9.0\!\to\!9.4$   & $8.2\!\to\!9.1$   & $8.5\!\to\!9.2$ \\
-Served edge  & $2.7\!\to\!3.9$   & $3.8\!\to\!4.1$   & $4.1\!\to\!4.7$   & $3.5\!\to\!4.2$ \\
-Mean tput    & $11.3\!\to\!11.2$ & $12.2\!\to\!12.1$ & $10.8\!\to\!10.9$ & $11.4\!\to\!11.4$ \\
+Median tput gain & $9.5\pm11.3\%$ & $10.5\%$ & $4.5\%$ & $13.3\%$ \\
+Served edge gain & $22.4\pm24.8\%$& $41.0\%$ & $6.0\%$ & $20.2\%$ \\
+Jain fairness gain & $9.1\pm11.0\%$ & $11.2\%$ & $4.4\%$ & $11.5\%$ \\
+Peak load (UEs) & $-0.75$ & $-0.88$ & $-0.50$ & $-0.88$ \\
+Mean tput gain & $0.5\pm5.8\%$ & $-0.7\%$ & $-0.3\%$& $2.5\%$ \\
+Outage change & $0.0$ pts & $0.0$ & $0.0$ & $0.0$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -413,171 +256,75 @@ Mean tput    & $11.3\!\to\!11.2$ & $12.2\!\to\!12.1$ & $10.8\!\to\!10.9$ & $11.4
 \begin{figure}[t]
 \centering
 \figorbox{fig_cdf_pooled.png}{fig\_cdf\_pooled.png}
-\caption{Per-UE throughput CDF, baseline vs.\ rApp (pooled over scenes/seeds).}
+\caption{Per-UE throughput CDF, baseline vs.\ rApp (pooled over all scenes and seeds). The rApp lifts the low-to-median part of the distribution.}
 \label{fig:cdf}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \figorbox{fig_gains_by_scene.png}{fig\_gains\_by\_scene.png}
-\caption{rApp gains over strongest-cell association by scene (mean $\pm$ std over
-eight seeds). The direction is consistent; the magnitude is deployment-dependent,
-with the widest spread on the served cell-edge.}
-\label{fig:gains}
+\caption{rApp gains by scene and metric (mean $\pm$ std). Berlin's dense geometry yields the largest cell-edge gain; Paris's high outage limits the rApp's covered load to rebalance.}
+\label{fig:gainsbar}
+\end{figure}
+
+\subsection{What limits the rApp gain?}
+To understand when the rApp helps, we regress the per-run median throughput gain against baseline scene statistics (Fig.~\ref{fig:scatter}). The strongest single predictor is the baseline \emph{outage} rate: the gain declines as outage rises ($r{=}{-}0.42$, $R^2{=}0.17$). This matches the coverage/load dichotomy---where many users are already in outage (e.g., Paris), the rApp has little covered load to rebalance, so steering yields smaller gains. Notably, raw load imbalance (peak-to-mean cell load) is by itself only weakly predictive ($R^2{=}0.04$): imbalance alone does not indicate where steering helps; the binding constraint is how much \emph{covered} load is available to move. The design insight is that an rApp should be targeted where coverage is adequate and load is imbalanced, and a twin used to size its benefit must represent the joint outage/imbalance distribution---not just the average.
+
+\begin{figure}[t]
+\centering
+\figorbox{fig_scatter_gain.png}{fig\_scatter\_gain.png}
+\caption{rApp median throughput gain vs.\ baseline outage (24 runs). The gain declines with outage ($r{=}{-}0.42$, $R^2{=}0.17$): steering helps less where coverage, not load, is the binding constraint.}
+\label{fig:scatter}
 \end{figure}
 
 \subsection{Coverage and outage}
-Mean UE outage is $16.2\%$ at full load, and scene-dependent (Berlin $8.8\%$,
-Manhattan $16.3\%$, Paris $23.8\%$), reflecting random placement over the extent.
-For a fixed layout, outage is coverage-limited (path-loss-driven) and insensitive
-to inter-cell load, while served users are interference-limited
-(Fig.~\ref{fig:outage}).
+Mean UE outage is $16.2\%$ at full load, and scene-dependent (Berlin $8.8\%$, Manhattan $16.3\%$, Paris $23.8\%$), reflecting random placement over the extent. For a fixed layout, outage is coverage-limited (path-loss-driven) and insensitive to inter-cell load, while served users are interference-limited (Fig.~\ref{fig:outage}).
 
 \begin{figure}[t]
 \centering
 \figorbox{fig_outage_vs_load.png}{fig\_outage\_vs\_load.png}
-\caption{UE outage vs.\ inter-cell load factor, for one cached layout per scene.}
+\caption{UE outage vs.\ inter-cell load factor, per scene. Outage is flat---coverage-limited, not interference-limited.}
 \label{fig:outage}
 \end{figure}
 
 \subsection{Sensitivity to inter-cell load}
-As the neighbour load factor falls from $1.0$ to $0$, mean per-UE throughput rises
-$1.7$--$1.8\times$ (Berlin $13.6\to22.7$, Paris $14.9\to25.2$, Manhattan
-$11.9\to22.0$~Mbps; Fig.~\ref{fig:tput}), confirming served users are
-interference-limited. Combined with the outage result, this separates two regimes
-the twin must represent distinctly: a coverage-limited tail, set by path loss and
-insensitive to load, that steering and load control cannot fix; and an
-interference-limited body, where both the neighbour load and the rApp's
-load-balancing act. A twin that reported only average throughput would blur these,
-and an rApp tuned on such a twin could over-claim gains that evaporate in the
-coverage-limited tail of a real deployment.
+As the neighbour load factor falls from $1.0$ to $0$, mean per-UE throughput rises $1.7$--$1.8\times$ (Berlin $13.6\to22.7$, Paris $14.9\to25.2$, Manhattan $11.9\to22.0$~Mbps; Fig.~\ref{fig:tput}), confirming served users are interference-limited. Combined with the outage result, this separates two regimes the twin must represent distinctly: a coverage-limited tail, set by path loss and insensitive to load, that steering cannot fix; and an interference-limited body, where both the neighbour load and the rApp's load-balancing act. A twin that reported only average throughput would blur these, and an rApp tuned on such a twin could over-claim gains that evaporate in the coverage-limited tail of a real deployment.
 
 \begin{figure}[t]
 \centering
 \figorbox{fig_throughput_vs_load.png}{fig\_throughput\_vs\_load.png}
-\caption{Mean per-UE throughput vs.\ inter-cell load factor, for one cached layout
-per scene.}
+\caption{Mean per-UE throughput vs.\ inter-cell load factor, per scene. Served users are interference-limited.}
 \label{fig:tput}
 \end{figure}
 
-\subsection{Real-stack grounding (single link)}
-The bridge converts a link's ray-traced channel frequency response to a
-sample-spaced impulse response (IFFT), retains the strongest causal taps,
-normalises them to unit energy so their shape carries the multipath while the
-overall gain is carried separately, and maps each tap delay to a sample index.
-These taps override the software-radio-simulator's channel through a small patch to
-OAI's channel module. A companion bridge expresses each UE's twin-computed
-inter-cell interference as a noise-floor rise,
-$\Delta N_u=10\log_{10}\!\big((I_u+N_0)/N_0\big)$, written as a per-client OAI noise
-power, so a single-link run reflects its multi-cell context. OAI builds and runs on
-the same CPU host; a gNB--UE link reports real PHY KPIs (downlink SNR
-${\sim}15$\,dB, MCS 9), and injection is confirmed in the gNB log
-(\texttt{[RT] injected 4 taps ... channel\_length=49}); the link then runs its
-PHY/MAC (HARQ, link adaptation) over the site-specific channel. Absolute path loss
-is masked by automatic gain control and uplink power control in phy-test mode, so
-the proof of grounding is the injection and the multipath the receiver equalises,
-not an absolute level change; absolute goodput requires the full-stack Standalone
-path outlined in Sec.~\ref{subsec:fullstack}.
+\subsection{Real-stack grounding}
+The channel injection bridge (Sec.~\ref{sec:bridges}) was verified on a live OAI gNB--UE link. OAI builds and runs on the same CPU host; the link reports real PHY KPIs (downlink SNR ${\sim}15$\,dB, MCS 9), and injection is confirmed in the gNB log (\texttt{[RT] injected 4 taps ... channel\_length=49}). The link then runs its PHY/MAC (HARQ, link adaptation) over the site-specific channel. Absolute path loss is masked by automatic gain control and uplink power control in phy-test mode, so the proof of grounding is the injection and the multipath the receiver equalises, not an absolute level change; absolute goodput requires the full-stack Standalone path outlined below.
 
-\subsection{Toward full-stack integration}\label{subsec:fullstack}
-The verified components above compose into a full-stack closed loop, which we
-describe as the immediate next step. A multi-UE Standalone deployment (OAI 5G core
-in containers, gNB, and $N$ UEs in network namespaces) would place each UE on its
-ray-traced channel and computed interference noise floor; FlexRIC~\cite{flexric}
-would stream per-UE KPMs (E2SM-KPM); iperf3 would supply real per-UE goodput; and the
-traffic-steering rApp would issue CIO/handover actions over O1/telnet, closing the
-loop on the real stack. The headline measurement this enables is the
-\emph{fidelity gap}---the difference between the rApp gain the analytical twin
-predicts (Table~\ref{tab:results}) and the gain the real stack delivers---arguably
-the most useful single number a network digital twin can report. The bridges of
-Sec.~III (channel injection and per-UE interference noise floor) are the mechanism;
-the integration requires a host with Docker and root privileges.
+\subsection{Toward full-stack integration}
+The verified components compose into a full-stack closed loop. A multi-UE Standalone deployment (OAI 5G core, gNB, $N$ UEs) would place each UE on its ray-traced channel and interference noise floor; FlexRIC~\cite{flexric} would stream per-UE KPMs; iperf3 would supply goodput; and the rApp would issue CIO actions over O1/telnet. The headline measurement this enables is the \emph{fidelity gap}---the difference between the rApp gain the twin predicts (Table~\ref{tab:results}) and the gain the real stack delivers.
 
 \subsection{Implications for twin-based rApp development}
-Two practical conclusions follow. First, a network digital twin intended to
-\emph{rank} or \emph{tune} control policies should report distributions over many
-random deployments, not a headline number from one scenario: our own single-seed
-pilot suggested a uniformly large gain, which the 24-run study tempered into a
-robust-direction/variable-magnitude result. Second, coverage and load are distinct
-problems---traffic steering improves the experience of \emph{covered} users but
-cannot rescue users in outage---so a twin used to size an rApp's benefit must
-account for the coverage regime (here, via the outage rate and the load-sensitivity
-sweep) rather than reporting served-user throughput alone. These are precisely the
-kinds of design insights a twin is meant to surface before deployment.
+Two practical conclusions follow. First, a twin intended to \emph{rank} control policies should report distributions over many random deployments, not a headline number from one scenario: our single-seed pilot suggested a uniformly large gain, which the 24-run study tempered into a robust-direction/variable-magnitude result. Second, coverage and load are distinct problems---traffic steering improves \emph{covered} users but cannot rescue users in outage---so a twin used to size an rApp's benefit must account for the coverage regime rather than reporting served-user throughput alone.
 
-\subsection{Reproducibility and open release}
-All results are produced by an open experiment harness that fetches each scene's
-geometry once, reuses it across seeds (so only the random placement and the ray
-tracing re-run per layout), and aggregates per-run statistics with means, medians,
-and outage. A single command reproduces the 24-run matrix and the load sweep on a
-commodity CPU in about five minutes; each scene is ray-traced in roughly one
-minute. The twin, the OAI-measured link curve $\Phi_{\mathrm{OAI}}$, the
-traffic-steering rApp, and the OAI bridges (channel injection and per-UE
-interference noise floor) are released together, so that both the fast-layer
-network results and the per-link real-stack grounding can be re-run independently,
-and the full-stack integration of Sec.~\ref{subsec:fullstack} can be completed on a
-host with Docker and root.
+%=============================================================================
+\section{Discussion and Limitations}
+\label{sec:disc}
+%=============================================================================
+We state these plainly. (1)~The rApp closed loop is evaluated on the analytical twin; the OAI stack provides per-link ground truth and verified channel injection but is not yet \emph{driven} by the rApp in one running system. (2)~Inter-cell interference is modelled as noise power rather than physically combined waveforms; waveform-level combining requires FPGA/GPU-class emulators. (3)~The evaluation is a static full-buffer snapshot, single carrier, downlink only; mobility, fractional frequency reuse, and uplink are natural extensions. (4)~rApp benefits are high-variance and layout-dependent; we report full distributions. (5)~Traffic steering does not address coverage. (6)~Validation is stack-versus-model; calibration against field measurements and real cell-site databases are the highest-value next steps.
 
-\section{Discussion and Limitations}\label{sec:disc}
-We state these plainly. (1)~The rApp closed loop is currently evaluated on the
-multi-cell analytical twin; the OAI stack provides per-link ground truth and
-verified channel injection but is not yet \emph{driven} by the rApp in one running
-system. Section~\ref{subsec:fullstack} outlines this integration; the two bridges
-(channel injection and interference noise floor) are the mechanism that connects
-them. (2)~Inter-cell interference is modelled as (frequency-selective)
-noise power rather than physically combined waveforms; waveform-level combining
-across cells requires cluster-, FPGA-, or GPU-class channel emulators and is out of
-scope for a CPU platform. (3)~The evaluation is a static full-buffer snapshot, all
-cells share one carrier, and only the downlink is modelled; mobility (via a
-virtual-time simulator), fractional frequency reuse, and uplink are natural
-extensions. (4)~rApp benefits are high-variance and strongly layout-dependent, so
-we report full distributions rather than a single figure; practitioners should
-treat the mean as indicative and the spread as the operative uncertainty.
-(5)~Traffic steering does not address coverage: users in outage cannot be rescued
-by re-association, only by densification or power/tilt control. (6)~Validation is
-stack-versus-model; calibration against field measurements, and the use of real
-cell-site databases in place of random layouts, are the highest-value next steps.
-
+%=============================================================================
 \section{Conclusion}
-We presented an open, CPU-only, site-specific, multi-cell 5G digital twin that
-grounds throughput in OAI's physical layer, hosts a traffic-steering rApp, and
-transmits a real OAI link over the exact ray-traced channel. Across three cities
-and eight random layouts each, the rApp improves median and cell-edge throughput
-and fairness and relieves peak load, without inflating aggregate rate or fixing
-coverage---an honest, reproducible result. The full-stack closed loop
-(Sec.~\ref{subsec:fullstack}) is the planned integration that will make it the first
-open platform to bring all four ingredients together on commodity hardware.
+%=============================================================================
+We presented an open, CPU-only, site-specific, multi-cell 5G digital twin that grounds throughput in OAI's physical layer---replacing idealized link-to-system curves with a curve measured from a real 5G receiver---and hosts a traffic-steering rApp. We quantified the implementation loss (38\% below Shannon at 10\,dB) and showed its non-uniform MCS spacing spans up to 2.2\,dB versus the $\sim$1\,dB of an idealized staircase. Two bridges connect the analytical twin to a live OAI stack: exact ray-traced channel injection and a per-UE interference-as-noise-floor mapping. Across three cities and eight random layouts each, the rApp improves median and cell-edge throughput and fairness and relieves peak load, without inflating aggregate rate or fixing coverage---an honest, reproducible result. The rApp gain is limited by baseline outage ($r{=}{-}0.42$) rather than by raw load imbalance, clarifying where steering helps. The full-stack closed loop is the planned integration that will make it the first open platform to bring all four ingredients together on commodity hardware, enabling the measurement of the fidelity gap---the difference between the rApp gain the twin predicts and the gain the real stack delivers.
 
-\textbf{Future work.} Completing the full-stack loop (multi-UE Standalone, FlexRIC
-KPM, and the rApp acting on OAI) will let us report the twin-predicted-vs-stack
-fidelity gap on a control task---arguably the most useful single number a RAN twin
-can provide. Beyond that, real cell-site databases in place of random layouts,
-mobility through a virtual-time simulator, uplink and multi-carrier support, and
-calibration against field measurements are the natural directions; each slots into
-the existing pipeline without changing its structure.
+\textbf{Future work.} Completing the full-stack loop (multi-UE Standalone, FlexRIC~\cite{flexric} KPM, and the rApp acting on OAI) will let us report this fidelity gap on a control task. Beyond that, real cell-site databases, mobility, uplink and multi-carrier support, and calibration against field measurements are the natural directions; each slots into the existing pipeline without changing its structure.
 
-\begin{thebibliography}{00}
-\bibitem{owdt} T.~Iye \emph{et al.}, ``Open Wireless Digital Twin: End-to-End 5G
-Mobility Emulation with OpenAirInterface and Ray Tracing,'' \emph{IEEE Access},
-2025 (arXiv:2503.12177).
-\bibitem{tinytwin} A.~Mamaghani \emph{et al.}, ``Tiny-Twin: A CPU-Native Full-stack
-Digital Twin for NextG Cellular Networks,'' arXiv:2601.08217, 2026.
-\bibitem{opentwin} ``OpenTwin: Digital Twin--Driven Closed-Loop KPM Inference and
-Control for Open RAN,'' arXiv:2605.24662, 2026.
-\bibitem{oaiho} ``Towards Intelligent Mobility Management: Customized Handover in 5G
-O-RAN Networks,'' ACM, 2025.
-\bibitem{sionnart} J.~Hoydis \emph{et al.}, ``Sionna RT: Differentiable Ray Tracing
-for Radio Propagation Modeling,'' arXiv:2303.11103.
-\bibitem{oai} F.~Kaltenberger \emph{et al.}, ``Driving Innovation in 6G Wireless
-Technologies: The OpenAirInterface Approach,'' \emph{Computer Networks}, 2025.
-\bibitem{flexric} R.~Schmidt, M.~Irazabal, and N.~Nikaein, ``FlexRIC: An SDK for
-Next-Generation SD-RANs,'' in \emph{Proc. ACM CoNEXT}, 2021.
-\bibitem{ns3sionna} R.~Pegurri \emph{et al.}, ``Toward Digital Network Twins:
-Integrating Sionna RT in ns-3 for 6G Multi-RAT Networks,'' INFOCOM WKSHPS, 2025
-(arXiv:2501.00372).
-\bibitem{eesm} 3GPP TS 38.214, ``NR; Physical layer procedures for data.''
-\bibitem{ocng} 3GPP TS 38.106, ``NR; Repeater radio transmission and reception''
-(OCNG).
-\end{thebibliography}
+%=============================================================================
+\section*{Reproducibility}
+%=============================================================================
+All results are produced by an open experiment harness that fetches each scene's geometry once, reuses it across seeds, and aggregates per-run statistics. A single command reproduces the 24-run matrix and the load sweep on a commodity CPU in about five minutes. The twin, the OAI-measured link curve $\Phi_{\mathrm{OAI}}$, the traffic-steering rApp, and the OAI bridges are released together under Apache-2.0.
+
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
 
 \end{document}
