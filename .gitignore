@@ -10,3 +10,11 @@ openairinterface5g/
 # Python
 __pycache__/
 *.pyc
+.venv/
+experiments/results/scene/
+
+# LaTeX build artifacts (main.pdf is tracked)
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.out

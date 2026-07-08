@@ -1,0 +1,29 @@
+# Multi-gNB handover evidence (CU + DU-pci0 + DU-pci1, F1 SA)
+# Captured from live OAI stack after Phase 2 verification.
+
+## Stack topology
+- CU: gnb-cu.sa.f1.conf (telnet port 9090, --telnetsrv --telnetsrv.shrmod ci)
+- DU0: gnb-du.sa.band78.106prb.rfsim.pci0.conf (PCI 0, cell ID 12345678)
+- DU1: gnb-du.sa.band78.106prb.rfsim.pci1.conf (PCI 1, cell ID 11111111)
+- UE: oai_run/ue_ho.conf, IMSI 001010000000001, rfsim server mode
+
+## Registration (PCI 0)
+cu.log: NGSetupResponse, PDU session 1 established, UE 1 on cell bc614e (PCI 0)
+ue.log: Initial sync successful PCI 0; oaitun_ue1 IPv4 10.0.0.2
+
+## Handover trigger (scripted CU telnet, not E2-RC)
+Command: echo ci trigger_f1_ho | nc 127.0.0.1 9090
+cu.log line 124-125: Command received: readc 17 filled 17 "ci trigger_f1_ho"
+cu.log line 125: Handover triggered for UE 1/RNTI acf4 towards cell 11111111/assoc_id 8/PCI 1
+cu.log line 140: handover for UE 1/RNTI e92a complete!
+cu.log line 141: UE 1 Handover: trigger release on cell PCI 0/assoc_id 6
+
+## Post-handover verification
+- PDU session preserved: oaitun_ue1 still 10.0.0.2 (ping 10.0.0.1 0% loss)
+- UE serving PCI 1: ue.log "Initial sync successful, PCI: 1" after HO
+- iperf3 DL after HO: 9.09 Mbit/s receiver (3 s, server 192.168.70.135)
+
+## Method note for paper
+Handovers are triggered via OAI CU telnet (ci trigger_f1_ho), not autonomous A3/CIO
+or FlexRIC E2-RC. The rApp's steering decision (which UEs to move) comes from the
+analytical twin; the real stack executes the chosen handovers with this scripted trigger.

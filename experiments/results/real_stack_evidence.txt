@@ -1,0 +1,47 @@
+# Real-stack SA loop evidence (2026-07-07T19:17Z)
+
+## 5G core (docker compose ps: NF -> health)
+  oai-amf healthy
+  oai-smf healthy
+  oai-upf healthy
+  oai-nrf healthy
+  oai-ausf healthy
+  oai-udm healthy
+  oai-udr healthy
+  mysql healthy
+  bridge=192.168.70.129 amf=192.168.70.132 upf=192.168.70.134 data-network=192.168.70.135
+
+## gNB <-> AMF (NGAP)
+  [NGAP]   Received NGSetupResponse from AMF
+
+## UE registration + PDU session + user-plane
+  [NAS]    Received Registration Accept with result 3GPP
+  [NAS]    Received PDU Session Establishment Accept, UE IPv4: 10.0.0.3
+  [OIP]    TUN Interface oaitun_ue1 successfully configured, IPv4 10.0.0.3, IPv6 (null)
+  iperf3 downlink over UPF: ~25.6 Mbps (default rfsim channel), single UE
+
+## Real fidelity-gap summary (experiments/results/real_fidelity_gap.json)
+  {
+    "abs_link_fidelity": {
+      "n_points": 10,
+      "mcs_range": [
+        2,
+        28
+      ],
+      "sinr_range_db": [
+        -0.6,
+        21.4
+      ],
+      "mean_twin_link_mbps": 48.06234,
+      "mean_real_goodput_mbps": 20.0654,
+      "mean_inflation_pct": 49.5090695571083,
+      "median_inflation_pct": 53.07088202363886
+    },
+    "n_layouts": 8,
+    "n_ue": 240,
+    "n_moved": 13,
+    "moved_twin_gain_mean_pct": -28.506230769230772,
+    "moved_real_gain_mean_pct": -23.652538461538462,
+    "moved_fidelity_gap_mean_pts": -4.853692307692309,
+    "moved_fidelity_gap_std_pts": 4.349259749298023
+  }
