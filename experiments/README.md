@@ -33,13 +33,23 @@ SINR->throughput curve, and separates two errors:
 * **decision** error (*regret*) — the proportional-fair utility lost by planning on the
   surrogate and being evaluated on the OAI-grounded twin.
 
-The surrogates are the Shannon-optimal staircase and two one-parameter analytical
-curves fitted to the OAI data (a SINR offset `delta`, and an attenuation `alpha`) — the
-honest baselines. Result: a single fitted `delta = 4.71 dB` cuts reporting error from
-41.3% to 1.5% and regret from 0.76 to 0.04 nats, while the customary "decisions differ"
-statistic (33–42% for *every* surrogate) separates none of them.
+Four surrogates over the identical (MCS, SE) set, differing only in the SINR at which
+each MCS becomes available:
 
-Outputs `decision_regret.{csv,json}`, `paper/fig_decision_regret.png`.
+| curve | reporting error | decisions differ | regret [nats] |
+|---|---|---|---|
+| `ideal` — Shannon-optimal staircase | +39.7% | 37.5% | 0.767 |
+| `margin2db` — *assumed* 2 dB margin | +24.4% | 29.2% | 0.732 |
+| `offset` — *fitted* `delta = 4.71 dB` | **+1.6%** | 25.0% | **0.033** |
+| `attenuated` — fitted `alpha = 0.606` | −5.7% | 37.5% | 0.800 |
+
+Three readings. A fitted `delta` collapses both errors (23× less regret). A merely
+*assumed* 2 dB margin halves the reporting error and barely touches the regret, so it is
+`delta`'s **value**, not a margin's presence, that a controller is sensitive to. And the
+customary "decisions differ" statistic is 25–38% for *every* surrogate — it separates
+none of them; only regret does.
+
+Outputs `decision_regret.{csv,json}`, `paper/fig_decision_regret.pdf`.
 
 ## 3. Live-stack experiments (need a full OAI SA host)
 
@@ -71,7 +81,7 @@ Both curves are indexed by the twin's *operating MCS*, not interpolated along SI
 twin's rate is a staircase in SINR, so interpolating a measured curve along SINR would
 compare a staircase with a ramp and manufacture a gap between the knots.
 
-Outputs `real_goodput_calib.csv`, `real_fidelity_gap.{csv,json}`, `paper/fig_real_fidelity_gap.png`.
+Outputs `real_goodput_calib.csv`, `real_fidelity_gap.{csv,json}`, `paper/fig_real_fidelity_gap.pdf`.
 
 ### 3b. Null control: what does the multi-cell harness measure when nothing is there?
 
@@ -87,7 +97,7 @@ identical to DU0 except PCI).
 
 Result: the original probe reports `-21.0 +/- 1.4%` (mean DL MCS 16.5 on PCI 0 vs 10.7 on
 PCI 1); probing at TCP's plateau gives `-2.4 +/- 2.9%`, consistent with zero, MCS 28 on
-both cells. Outputs `multignb_null_control.{csv,json}`, `paper/fig_null_control.png`.
+both cells. Outputs `multignb_null_control.{csv,json}`, `paper/fig_null_control.pdf`.
 
 This exists because the first multi-cell result was an instrument reading itself: the old
 protocol measured once before the handover (always DU0) and once after it (always DU1) and
@@ -148,10 +158,17 @@ CUDA_VISIBLE_DEVICES="" python3 experiments/eesm_sensitivity.py --seeds 8
 ```
 
 The EESM `beta` is set per modulation order from the literature and scaled by
-`eesm_beta_scale`, the twin's only unfitted parameter. Perturbing it by ±20% shifts
-the mean effective SINR by ∓0.14 dB, changes the rApp's decisions on 8.3% of layouts,
-and costs 0.006 nats of regret — an order of magnitude below even the *calibrated*
-link curve's 0.039. The twin's conclusions are not being driven by this knob.
+`eesm_beta_scale`, the twin's only unfitted parameter. Perturbing it by ±20%:
+
+| beta scale | Δ mean effective SINR | decisions differ | regret [nats] |
+|---|---|---|---|
+| ×0.8 | −0.15 dB | 8.3% | 0.046 |
+| ×1.2 | +0.11 dB | 4.2% | 0.005 |
+
+At most 0.046 nats — the *same order* as the residual regret of the best-calibrated link
+curve (0.033), and ~17× below an uncalibrated one (0.767). So the knob is not driving the
+conclusions, but it is not negligible either, and the perturbation bounds **magnitude**,
+not structural error across modulation orders. Both are stated in the paper.
 
 Outputs `eesm_sensitivity.{csv,json}`.
 

@@ -104,16 +104,23 @@ for the multi-UE Standalone + FlexRIC + iperf3 path.
 Across three urban scenes (Berlin, Paris, Manhattan) and eight random layouts each
 (24 runs), the traffic-steering rApp versus strongest-cell association:
 
-| Metric | Overall (mean ± std) |
-|---|---|
-| Median per-UE throughput gain | +9.5 ± 11.3% |
-| Served cell-edge throughput gain | +22.4 ± 24.8% |
-| Jain fairness gain | +9.1 ± 11.0% |
-| Peak cell load change | −0.75 UEs |
-| Aggregate rate / UE outage | ≈ unchanged |
+| Metric | Overall (mean, 95% CI) | paired *p* |
+|---|---|---|
+| Median per-UE throughput gain | +10.9% [6.8, 14.8] | 2e-04 |
+| Served cell-edge throughput gain | +25.9% [15.8, 36.9] | 4e-04 |
+| Jain fairness gain | +6.2% [1.0, 11.6] | 0.052 (sign) |
+| Peak cell load change | -0.62 UEs [-0.96, -0.29] | 6e-03 |
+| Aggregate rate | +3.7% [1.2, 6.4] | 0.036 |
+| UE outage | unchanged in all 24 runs | undefined |
 
-Per-UE throughput rises 1.5–1.7× as inter-cell load falls to idle. Full numbers in
-`experiments/results/summary.json`.
+CIs are seeded percentile bootstrap; *p* from a paired Wilcoxon signed-rank test on the
+absolute rates (sign test for Jain, with ties discarded per Dixon–Mood). Seeds within a
+scene share geometry, so `experiments/paper_stats.py` also reports the three per-scene
+tests — see [`experiments/README.md`](experiments/README.md).
+
+Per-UE throughput rises 1.68–1.95× as inter-cell load falls to idle. Every statistic
+quoted in the paper is recomputed from committed data by `experiments/paper_stats.py`
+into `experiments/results/paper_stats.json`.
 
 ## Paper
 

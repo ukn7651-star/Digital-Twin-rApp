@@ -7,27 +7,31 @@ system-level simulator on a Shannon-optimal staircase: real ones use an analytic
 curve calibrated to a link-level simulator. So this script strengthens the test in
 two ways.
 
-1. **Stronger baselines.** Besides the Shannon-optimal staircase we fit two
-   one-parameter analytical curves *to the OAI curve itself*, the way a practitioner
-   would:
-     * ``offset``    -- SE = log2(1 + gamma/delta), delta fitted (an implementation margin)
+1. **Stronger baselines.** Besides the Shannon-optimal staircase (``ideal``) we add
+   three surrogates over the same (MCS, SE) set, so the ONLY difference between twins
+   is the SINR at which each MCS becomes available:
+     * ``margin2db`` -- Shannon thresholds + a round 2 dB implementation margin, what a
+       link-budget abstraction assumes with no access to link-level data
+     * ``offset``    -- SE = log2(1 + gamma/delta), delta fitted to the OAI curve
      * ``attenuated``-- SE = a * log2(1 + gamma), a fitted (3GPP TR 36.942 style)
-   Both are then discretised onto the same MCS/SE set as the OAI curve, so the ONLY
-   difference between twins remains the SINR at which each MCS becomes available.
+   Comparing ``margin2db`` against ``offset`` isolates whether the *value* of the margin
+   matters or merely its presence. It is the value: an assumed 2 dB margin halves the
+   reporting error but barely dents the regret.
 
-2. **Regret, not divergence.** Disagreeing on the CIO vector is only interesting if
-   it costs something. We therefore take the CIO the rApp selects on each surrogate
-   twin, evaluate it on the OAI-grounded twin (the best available proxy for reality),
-   and report the throughput lost relative to the CIO the rApp would have selected
-   had it planned on the OAI twin:
+2. **Regret, not divergence.** Disagreeing on the CIO vector is only interesting if it
+   costs something. We take the CIO the rApp selects on each surrogate twin, evaluate it
+   on the OAI-grounded twin (the best available proxy for reality), and report the
+   utility lost relative to the CIO the rApp would have selected had it planned there:
 
-       regret = 1 - U(cio_surrogate | OAI twin) / U(cio_OAI | OAI twin)
+       regret = U(cio_OAI | OAI twin) - U(cio_surrogate | OAI twin)  >= 0
 
-   expressed both on the proportional-fair utility and on median UE throughput. This
-   is the quantity an operator actually pays: not "the twin reported the wrong number"
-   but "the twin picked the wrong action".
+   a *difference* in the proportional-fair objective (nats), not a ratio, and >= 0 by
+   construction because the OAI-planned CIO is a local optimum of that objective on that
+   twin. This is what an operator actually pays: not "the twin reported the wrong number"
+   but "the twin picked the wrong action". The median-throughput variant is also recorded
+   and can go negative, because the rApp optimises utility, not the median.
 
-Outputs: experiments/results/decision_regret.{csv,json}, paper/fig_decision_regret.png
+Outputs: experiments/results/decision_regret.{csv,json}, paper/fig_decision_regret.pdf
 """
 from __future__ import annotations
 

@@ -1,3 +1,11 @@
+> **SUPERSEDED — historical artifact, do not follow.**
+> This prompt was written for an earlier state of the repo and quotes numbers that have
+> since been **retracted** (the multi-cell gap of 57±165 pts; the sub-band twin's rApp
+> gains and its gain-vs-outage correlation). It also predates the seeded ray-tracing
+> solver, so its numbers are not reproducible. Kept only as a record of how the work
+> proceeded. For the current state see `README.md`, `experiments/README.md`, and
+> `experiments/results/paper_stats.json`.
+
 # Standalone prompt — Option B: controlled multi-cell fidelity gap (per-cell RT channel injection)
 
 Paste the block below into a fresh Cursor Agent on your local machine (clone the repo,
