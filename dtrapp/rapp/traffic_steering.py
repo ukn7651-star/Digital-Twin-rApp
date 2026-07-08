@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from dtrapp.config import SimulationConfig
-from dtrapp.kpi.engine import compute_kpis
+from dtrapp.kpi.engine import ChannelCache, compute_kpis
 from dtrapp.kpi.link_curve import LinkCurve, load_link_curve
 from dtrapp.kpi.results import KpiResult
 from dtrapp.network.models import Network
@@ -123,9 +123,11 @@ def run_traffic_steering(
     curve = link_curve if link_curve is not None else load_link_curve()
     num_cells = len(network.cells)
     grid = np.arange(-cio_cap_db, cio_cap_db + step_db / 2, step_db)
+    # The channel is fixed across the whole ascent; only the CIO moves.
+    cache = ChannelCache(cfr)
 
     def evaluate(cio):
-        return compute_kpis(network, cfr, config, link_curve=curve, cio_db=cio)
+        return compute_kpis(network, cfr, config, link_curve=curve, cio_db=cio, cache=cache)
 
     cio = np.zeros(num_cells, dtype=float)
     baseline = evaluate(cio)

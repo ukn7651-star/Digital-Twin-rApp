@@ -90,18 +90,27 @@ def _select_mcs_eesm(
 ) -> tuple[int, float, float]:
     """Highest MCS whose EESM effective SINR meets the curve's required SINR.
 
-    Returns (mcs, se, effective_sinr_db). EESM's beta depends on the candidate
-    MCS's modulation order, so the effective SINR is recomputed per candidate.
+    Returns (mcs, se, effective_sinr_db). EESM's beta depends on the candidate MCS's
+    *modulation order*, not on the MCS itself, so there are only four distinct betas
+    however many MCS the curve has. We evaluate the (expensive) log-sum-exp once per
+    beta rather than once per candidate -- identical result, ~7x fewer passes over the
+    per-RE SINR vector, which dominates the cost at full-band CFR.
     """
+    eff_by_beta: dict[float, float] = {}
+
+    def eff_db_for(beta: float) -> float:
+        if beta not in eff_by_beta:
+            eff_by_beta[beta] = 10.0 * np.log10(
+                max(_eesm_eff_sinr_lin(gamma_lin, beta), 1e-12))
+        return eff_by_beta[beta]
+
     for p in sorted(curve.points, key=lambda q: q["sinr_db"], reverse=True):
         beta = EESM_BETA_BY_QM[_qm_for_mcs(int(p["mcs"]), table_index)] * beta_scale
-        eff_db = 10.0 * np.log10(max(_eesm_eff_sinr_lin(gamma_lin, beta), 1e-12))
+        eff_db = eff_db_for(beta)
         if eff_db >= p["sinr_db"]:
             return int(p["mcs"]), float(p["se_bps_per_hz"]), float(eff_db)
     # No MCS sustainable: report the effective SINR at the most robust beta.
-    beta = EESM_BETA_BY_QM[2] * beta_scale
-    eff_db = 10.0 * np.log10(max(_eesm_eff_sinr_lin(gamma_lin, beta), 1e-12))
-    return -1, 0.0, float(eff_db)
+    return -1, 0.0, float(eff_db_for(EESM_BETA_BY_QM[2] * beta_scale))
 
 
 def _serving_gain_per_re(h_link: np.ndarray) -> np.ndarray:
@@ -118,15 +127,36 @@ def _serving_gain_per_re(h_link: np.ndarray) -> np.ndarray:
     return sigma[:, 0] ** 2
 
 
-def _gamma_lin_per_re(h, u: int, s: int, p_re, n_bs_ant: int, noise_re: float,
-                      load: float, num_cells: int) -> np.ndarray:
+class ChannelCache:
+    """Per-RE channel quantities that do not depend on the association.
+
+    ``run_traffic_steering`` evaluates ``compute_kpis`` hundreds of times on the *same*
+    ray-traced channel, varying only the CIO vector. The MRT serving gain and the
+    Frobenius interference power per RE are functions of the channel alone, so computing
+    them once turns the coordinate ascent from O(iterations x REs x cells) channel work
+    into O(REs x cells). At full-band CFR (1272 subcarriers) this is the difference
+    between a minute and a few seconds per layout.
+    """
+
+    __slots__ = ("gain_re", "fro2_re", "mean_h2")
+
+    def __init__(self, cfr) -> None:
+        h = _to_numpy(cfr)
+        n_ue, _n_rx, n_c = h.shape[0], h.shape[1], h.shape[2]
+        self.gain_re = np.stack(
+            [[_serving_gain_per_re(h[u, :, c]) for c in range(n_c)] for u in range(n_ue)]
+        )                                                          # [nU, nC, nRE]
+        self.fro2_re = (np.abs(h) ** 2).sum(axis=(1, 3)).reshape(n_ue, n_c, -1)
+        self.mean_h2 = (np.abs(h) ** 2).mean(axis=(1, 3, 4, 5))    # [nU, nC]
+
+
+def _gamma_lin_per_re(cache: ChannelCache, u: int, s: int, p_re, n_bs_ant: int,
+                      noise_re: float, load: float, num_cells: int) -> np.ndarray:
     """Per-RE SINR of UE ``u`` when served by cell ``s`` (every other cell interferes)."""
-    signal_re = p_re[s] * _serving_gain_per_re(h[u, :, s])        # [nRE]
-    fro2 = (np.abs(h[u]) ** 2).sum(axis=(0, 2))                   # [nC, nSym, nSC]
-    fro2_re = fro2.reshape(num_cells, -1)                         # [nC, nRE]
+    signal_re = p_re[s] * cache.gain_re[u, s]                     # [nRE]
     mask = np.ones(num_cells, dtype=bool)
     mask[s] = False
-    interf_re = load * ((p_re[mask, None] / n_bs_ant) * fro2_re[mask]).sum(axis=0)
+    interf_re = load * ((p_re[mask, None] / n_bs_ant) * cache.fro2_re[u][mask]).sum(axis=0)
     return signal_re / np.maximum(interf_re + noise_re, 1e-30)
 
 
@@ -148,6 +178,7 @@ def per_ue_cell_sinr(
     cfr,
     config: SimulationConfig,
     link_curve: LinkCurve | None = None,
+    cache: ChannelCache | None = None,
 ) -> list[list[dict]]:
     """Effective SINR / MCS / SE for every (UE, candidate serving cell) pair.
 
@@ -160,9 +191,10 @@ def per_ue_cell_sinr(
     Returns ``out[ue][cell] = {"sinr_db", "mcs", "se_bps_per_hz"}``.
     """
     curve = link_curve if link_curve is not None else load_link_curve()
-    h = _to_numpy(cfr)
+    cache = cache if cache is not None else ChannelCache(cfr)
     _tx, p_re, scs = _tx_psd(network, config)
-    num_cells, n_bs_ant = len(network.cells), h.shape[3]
+    num_cells = len(network.cells)
+    n_bs_ant = _to_numpy(cfr).shape[3]
     load = float(np.clip(config.neighbor_load, 0.0, 1.0))
     beta_scale = float(config.eesm_beta_scale)
     table_index = int(config.mcs_table_index)
@@ -172,7 +204,7 @@ def per_ue_cell_sinr(
         noise_re = _noise_per_re(ue, config, scs)
         per_cell = []
         for s in range(num_cells):
-            g = _gamma_lin_per_re(h, u, s, p_re, n_bs_ant, noise_re, load, num_cells)
+            g = _gamma_lin_per_re(cache, u, s, p_re, n_bs_ant, noise_re, load, num_cells)
             mcs, se, eff_db = _select_mcs_eesm(curve, g, table_index, beta_scale)
             per_cell.append({"sinr_db": float(eff_db), "mcs": int(mcs),
                              "se_bps_per_hz": float(se)})
@@ -186,6 +218,7 @@ def compute_kpis(
     config: SimulationConfig,
     link_curve: LinkCurve | None = None,
     cio_db=None,
+    cache: ChannelCache | None = None,
 ) -> KpiResult:
     """Per-UE and per-cell KPIs from the ray-traced CFR via the OAI link curve.
 
@@ -208,16 +241,15 @@ def compute_kpis(
     beta_scale = float(config.eesm_beta_scale)
     table_index = int(config.mcs_table_index)
 
-    h = _to_numpy(cfr)
+    cache = cache if cache is not None else ChannelCache(cfr)
     num_cells = len(cells)
-    n_bs_ant = h.shape[3]
+    n_bs_ant = _to_numpy(cfr).shape[3]
 
     tx_watt, p_re, _scs = _tx_psd(network, config)
 
     # Association on wideband mean received power (RSRP-like), biased by the
     # per-cell CIO (traffic-steering control). Power/SINR use the true rx_watt.
-    mean_h2 = (np.abs(h) ** 2).mean(axis=(1, 3, 4, 5))           # [nU, nC]
-    rx_watt = mean_h2 * tx_watt[None, :]
+    rx_watt = cache.mean_h2 * tx_watt[None, :]
     if cio_db is None:
         assoc_metric = rx_watt
     else:
@@ -235,7 +267,7 @@ def compute_kpis(
         noise_re = _noise_per_re(ue, config, scs)
 
         # Serving signal (coherent MRT/MRC) over load-scaled inter-cell interference.
-        gamma_lin = _gamma_lin_per_re(h, u, s, p_re, n_bs_ant, noise_re, load, num_cells)
+        gamma_lin = _gamma_lin_per_re(cache, u, s, p_re, n_bs_ant, noise_re, load, num_cells)
         mcs, se, eff_sinr_db = _select_mcs_eesm(curve, gamma_lin, table_index, beta_scale)
 
         se_goodput = se * (1.0 - bler_target)

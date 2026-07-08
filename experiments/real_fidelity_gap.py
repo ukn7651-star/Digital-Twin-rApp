@@ -318,7 +318,7 @@ def main() -> int:
         return 1
 
     by_mcs: dict[int, list[float]] = {}
-    mac_by_mcs: dict[int, list[float]] = {}
+    mac_by_mcs: dict[int, list[float]] = {}   # noqa: E501
     for r in valid:
         by_mcs.setdefault(int(r["dl_mcs"]), []).append(float(r["dl_goodput_mbps"]))
         if r.get("mac_goodput_mbps") is not None:
@@ -335,15 +335,37 @@ def main() -> int:
     meas_twin_link = bw_hz * meas_se * (1 - BLER) / 1e6          # twin link-level rate
 
     lo, hi = float(meas_sinr.min()), float(meas_sinr.max())
+    # Index the measured curves by the *operating MCS*, not by SINR. The twin's rate is a
+    # staircase in SINR: it picks an MCS, then a rate. Interpolating the measured curves
+    # along SINR instead would compare a staircase against a ramp and manufacture a gap
+    # between the knots that is pure interpolation, not physics.
+    mcs_grid = np.array(meas_mcs, dtype=float)
+    mac_se_grid = meas_mac * 1e6 / bw_hz
+    real_se_grid = meas_real * 1e6 / bw_hz
+
+    def _mcs_at(sinr_db: float) -> float:
+        return float(np.clip(curve.map_sinr(sinr_db)[0], mcs_grid.min(), mcs_grid.max()))
 
     def se_real(sinr_db: float) -> float:
-        """Measured spectral efficiency (bits/s/Hz) delivered end-to-end at ``sinr_db``."""
-        return float(np.interp(np.clip(sinr_db, lo, hi), meas_sinr, meas_real)) * 1e6 / bw_hz
+        """Spectral efficiency the application receives at the twin's operating MCS."""
+        return float(np.interp(_mcs_at(sinr_db), mcs_grid, real_se_grid))
+
+    def se_mac(sinr_db: float) -> float:
+        """Spectral efficiency OAI's *MAC* schedules at the twin's operating MCS.
+
+        This is the emulator-independent reference: the MAC is real 5G-NR scheduler code
+        and pays TDD duty, DMRS, PDCCH and HARQ. Everything below it (the transport /
+        compute ceiling of a CPU software radio) is an artefact of the emulator.
+        """
+        return float(np.interp(_mcs_at(sinr_db), mcs_grid, mac_se_grid))
 
     def se_twin(sinr_db: float) -> float:
         """Twin's goodput SE: the OAI staircase, exactly as ``dtrapp.kpi.engine`` uses it."""
         return curve.map_sinr(sinr_db)[1] * (1 - BLER)
 
+    # The twin -> MAC ratio is the twin's own abstraction error, free of the emulator.
+    derate_mac = meas_mac / meas_twin_link
+    infl_mac = 100.0 * (1 - derate_mac)
     infl = 100.0 * (meas_twin_link - meas_real) / meas_twin_link
     # A constant protocol overhead leaves goodput/SE flat; a throughput ceiling does not.
     implied_bw = meas_real * 1e6 / (meas_se * (1 - BLER))
@@ -362,6 +384,14 @@ def main() -> int:
         "median_inflation_pct": float(np.median(infl)),
         "inflation_pct_range": [float(infl.min()), float(infl.max())],
         "median_inflation_after_tdd_pct": float(np.median(infl_after_tdd)),
+        # Emulator-independent: twin link rate vs what OAI's MAC schedules.
+        "twin_to_mac_derate_mean": float(derate_mac.mean()),
+        "twin_to_mac_derate_std": float(derate_mac.std(ddof=1)),
+        "twin_to_mac_derate_cv_pct": float(100 * derate_mac.std(ddof=1) / derate_mac.mean()),
+        "twin_to_mac_inflation_median_pct": float(np.median(infl_mac)),
+        "twin_to_mac_inflation_range_pct": [float(infl_mac.min()), float(infl_mac.max())],
+        "twin_to_app_derate_cv_pct": float(100 * (meas_real / meas_twin_link).std(ddof=1)
+                                           / (meas_real / meas_twin_link).mean()),
         "implied_bandwidth_mhz_lowest_mcs": float(implied_bw[0] / 1e6),
         "implied_bandwidth_mhz_highest_mcs": float(implied_bw[-1] / 1e6),
         # Where the rate goes: link-level -> TDD duty -> what the MAC actually schedules
@@ -388,14 +418,21 @@ def main() -> int:
             # rApp's mechanism, so it belongs in BOTH gains and cancels in the gap.
             tw_b, tw_s = se_twin(b.sinr_db) * share_b[uid], se_twin(s.sinr_db) * share_s[uid]
             re_b, re_s = se_real(b.sinr_db) * share_b[uid], se_real(s.sinr_db) * share_s[uid]
+            mc_b, mc_s = se_mac(b.sinr_db) * share_b[uid], se_mac(s.sinr_db) * share_s[uid]
             outage = (se_twin(b.sinr_db) <= 0.0) or (se_twin(s.sinr_db) <= 0.0)
-            twin_gain = 100.0 * (tw_s - tw_b) / tw_b if tw_b > 0 else float("nan")
-            real_gain = 100.0 * (re_s - re_b) / re_b if re_b > 0 else float("nan")
+
+            def g(x, y):
+                return 100.0 * (y - x) / x if x > 0 else float("nan")
+
+            twin_gain, real_gain, mac_gain = g(tw_b, tw_s), g(re_b, re_s), g(mc_b, mc_s)
             rows.append({
                 "seed": seed, "ue_id": uid, "moved": int(uid in moved_ids),
                 "outage": int(outage),
                 "sinr_base_db": round(b.sinr_db, 2), "sinr_steer_db": round(s.sinr_db, 2),
-                "twin_gain_pct": round(twin_gain, 3), "real_gain_pct": round(real_gain, 3),
+                "twin_gain_pct": round(twin_gain, 3),
+                "mac_gain_pct": round(mac_gain, 3),
+                "real_gain_pct": round(real_gain, 3),
+                "gap_vs_mac_pts": round(twin_gain - mac_gain, 3),
                 "fidelity_gap_pts": round(twin_gain - real_gain, 3),
             })
         return rows
@@ -427,7 +464,8 @@ def main() -> int:
     # Only UEs the rApp moved, and whose gain is defined (not served from/into outage).
     mv = [r for r in per_ue if r["moved"] and not r["outage"]
           and r["twin_gain_pct"] == r["twin_gain_pct"]
-          and r["real_gain_pct"] == r["real_gain_pct"]]
+          and r["real_gain_pct"] == r["real_gain_pct"]
+          and r["mac_gain_pct"] == r["mac_gain_pct"]]
     n_moved = sum(1 for r in per_ue if r["moved"])
 
     def _arr(k):
@@ -447,7 +485,15 @@ def main() -> int:
     if mv:
         summary |= {
             "moved_twin_gain_mean_pct": float(_arr("twin_gain_pct").mean()),
+            "moved_mac_gain_mean_pct": float(_arr("mac_gain_pct").mean()),
             "moved_real_gain_mean_pct": float(_arr("real_gain_pct").mean()),
+            # Against the real MAC: the constant derate cancels in a ratio, so this
+            # isolates whether the twin's RELATIVE predictions are right.
+            "gap_vs_mac_mean_pts": float(_arr("gap_vs_mac_pts").mean()),
+            "gap_vs_mac_std_pts": (float(_arr("gap_vs_mac_pts").std(ddof=1))
+                                   if len(mv) > 1 else 0.0),
+            "gap_vs_mac_max_abs_pts": float(np.abs(_arr("gap_vs_mac_pts")).max()),
+            # Against delivered goodput: contains the emulator's transport ceiling.
             "moved_fidelity_gap_mean_pts": float(_arr("fidelity_gap_pts").mean()),
             "moved_fidelity_gap_std_pts": (float(_arr("fidelity_gap_pts").std(ddof=1))
                                            if len(mv) > 1 else 0.0),
@@ -489,17 +535,24 @@ def _make_figure(fig_path: Path, sinr, real, mac, twin_link, tdd_only, moved_row
     ax[0].grid(True, alpha=0.3)
     ax[0].legend(fontsize=8)
     if moved_rows:
+        # The whole argument in one panel: against what a real MAC schedules, the twin's
+        # RELATIVE predictions are right (points on y=x); against delivered goodput they
+        # are not, and the residual is the emulator's transport ceiling.
         tg = [r["twin_gain_pct"] for r in moved_rows]
+        mg = [r["mac_gain_pct"] for r in moved_rows]
         rg = [r["real_gain_pct"] for r in moved_rows]
-        lim = max(1.0, max(abs(min(tg + rg)), abs(max(tg + rg))) * 1.1)
-        ax[1].plot([-lim, lim], [-lim, lim], "k--", alpha=0.5, label="y=x (perfect)")
-        ax[1].scatter(tg, rg, c="tab:red", zorder=3)
-        ax[1].set_xlabel("twin-predicted per-UE gain [%]")
-        ax[1].set_ylabel("real-stack per-UE gain [%]")
-        ax[1].set_title("rApp steering gain: median gap "
-                    f"{summary['moved_fidelity_gap_median_pts']:.0f} pts")
+        lim = max(1.0, max(abs(min(tg + mg + rg)), abs(max(tg + mg + rg))) * 1.08)
+        ax[1].plot([-lim, lim], [-lim, lim], "k--", alpha=0.5, lw=1, label="y=x (perfect)")
+        ax[1].scatter(tg, mg, c="tab:green", marker="d", zorder=3, s=34,
+                      label=f"vs OAI MAC ({summary['gap_vs_mac_mean_pts']:+.1f}"
+                            f"$\\pm${summary['gap_vs_mac_std_pts']:.1f} pts)")
+        ax[1].scatter(tg, rg, c="tab:red", marker="o", zorder=3, s=34, alpha=0.85,
+                      label=f"vs app goodput ({summary['moved_fidelity_gap_median_pts']:+.0f} pts median)")
+        ax[1].set_xlabel("twin-predicted per-UE steering gain [%]")
+        ax[1].set_ylabel("delivered per-UE steering gain [%]")
+        ax[1].set_title("rApp steering gain: relative prediction")
         ax[1].grid(True, alpha=0.3)
-        ax[1].legend(fontsize=8)
+        ax[1].legend(fontsize=7, loc="upper left")
     fig.tight_layout()
     fig_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(fig_path, dpi=130)

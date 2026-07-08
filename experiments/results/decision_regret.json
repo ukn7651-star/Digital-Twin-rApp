@@ -1,0 +1,55 @@
+{
+  "n_seeds": 8,
+  "scenes": [
+    "berlin_mitte",
+    "paris_opera",
+    "manhattan_mid"
+  ],
+  "n_runs": 24,
+  "fit": {
+    "fitted_offset_db": 4.711274063299093,
+    "fitted_alpha": 0.6058601951281146
+  },
+  "note": "regret = what the rApp loses by planning on the surrogate twin and being evaluated on the OAI-grounded one. Utility is the proportional-fair objective the rApp actually maximises; the median regret can go negative because a surrogate's CIO occasionally lands on a higher median at lower PF utility.",
+  "curves": {
+    "ideal": {
+      "source": "idealized (Shannon-optimal thresholds)",
+      "n_runs": 24,
+      "tput_inflation_median_pct_mean": 41.26625000000001,
+      "tput_inflation_median_pct_median": 39.3074,
+      "frac_decisions_differ": 0.375,
+      "mean_steer_jaccard": 0.7958333333333334,
+      "regret_utility_mean": 0.7606791666666668,
+      "regret_utility_std": 2.376938353351651,
+      "regret_utility_max": 8.6966,
+      "frac_runs_with_regret": 0.375,
+      "regret_median_pct_of_gain_median": 0.0
+    },
+    "offset": {
+      "source": "analytical, fitted SINR offset 4.71 dB",
+      "n_runs": 24,
+      "tput_inflation_median_pct_mean": 1.5329916666666668,
+      "tput_inflation_median_pct_median": 0.4169,
+      "frac_decisions_differ": 0.3333333333333333,
+      "mean_steer_jaccard": 0.80625,
+      "regret_utility_mean": 0.039404166666666664,
+      "regret_utility_std": 0.08079479362889809,
+      "regret_utility_max": 0.3444,
+      "frac_runs_with_regret": 0.3333333333333333,
+      "regret_median_pct_of_gain_median": 0.0
+    },
+    "attenuated": {
+      "source": "analytical, fitted attenuation a=0.606",
+      "n_runs": 24,
+      "tput_inflation_median_pct_mean": -6.048849999999999,
+      "tput_inflation_median_pct_median": -5.74675,
+      "frac_decisions_differ": 0.4166666666666667,
+      "mean_steer_jaccard": 0.775,
+      "regret_utility_mean": 0.8008625,
+      "regret_utility_std": 2.4358880389085673,
+      "regret_utility_max": 8.6966,
+      "frac_runs_with_regret": 0.4166666666666667,
+      "regret_median_pct_of_gain_median": 0.0
+    }
+  }
+}

@@ -42,14 +42,40 @@ OVERPASS_URLS = [
 LOAD_SWEEP = [0.0, 0.25, 0.5, 0.75, 1.0]
 
 
+def _extent_from_ground(scene_dir: Path):
+    """Scene extent recovered from the built ground plane (no OSM fetch)."""
+    lines = (scene_dir / "meshes" / "ground.ply").read_text().splitlines()
+    i = lines.index("end_header") + 1
+    v = [list(map(float, lines[i + k].split()))[:2] for k in range(4)]
+    xs = [a for a, _ in v]
+    ys = [b for _, b in v]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def _scene_artifacts(name: str, bbox: BoundingBox, cfg: SimulationConfig, scene_dir: Path):
+    """Reuse a built scene if present; only hit Overpass when we must.
+
+    Geometry does not depend on any radio parameter, so rebuilding it on every run only
+    adds a network dependency (and Overpass rate-limits and times out).
+    """
+    from dtrapp.geometry.scene_builder import SceneArtifacts
+
+    if (scene_dir / "scene.xml").exists() and (scene_dir / "meshes" / "ground.ply").exists():
+        n = len(list((scene_dir / "meshes").glob("bldg-*.ply")))
+        print(f"[{name}] reusing built scene ({scene_dir})")
+        return SceneArtifacts(scene_dir / "scene.xml", None, n, _extent_from_ground(scene_dir))
+    print(f"[{name}] fetching OSM + building scene once ...")
+    return build_scene(bbox, scene_dir, cfg, overpass_json=fetch_osm(bbox, cfg))
+
+
 def base_config(bbox: BoundingBox) -> SimulationConfig:
     return SimulationConfig(
         bbox=bbox, default_building_height_m=15.0,
         num_sites=3, sectors_per_site=3, bs_height_m=25.0,
-        tx_power_dbm=46.0, carrier_freq_hz=3.5e9, bandwidth_hz=20e6,
+        tx_power_dbm=46.0, carrier_freq_hz=3.5e9, bandwidth_hz=38.16e6,
         num_ues=30, ue_height_m=1.5, ue_noise_figure_db=7.0, max_depth=3,
         bs_antenna_rows=4, bs_antenna_cols=1,
-        subcarrier_spacing_hz=30e3, num_subcarriers=128, num_ofdm_symbols=12,
+        subcarrier_spacing_hz=30e3, num_subcarriers=1272, num_ofdm_symbols=12,
         temperature_k=290.0, bler_target=0.1, mcs_table_index=1,
         neighbor_load=1.0, eesm_beta_scale=1.0,
     )
@@ -103,9 +129,7 @@ def main() -> int:
 
     for scene in scene_names:
         bbox = SCENES[scene]; cfg = base_config(bbox)
-        print(f"[{scene}] fetching OSM + building scene once ...")
-        osm = fetch_osm(bbox, cfg)
-        art = build_scene(bbox, out / "scene" / scene, cfg, overpass_json=osm)
+        art = _scene_artifacts(scene, bbox, cfg, out / "scene" / scene)
         engine = SionnaPropagationEngine(art.scene_xml, cfg)
         print(f"      {art.num_buildings} buildings; {len(seeds)} seeds ...")
         ue_tp[scene] = {"baseline": [], "steered": []}

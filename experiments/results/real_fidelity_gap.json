@@ -20,6 +20,15 @@
       86.94610290739492
     ],
     "median_inflation_after_tdd_pct": 73.09970509364032,
+    "twin_to_mac_derate_mean": 0.47036988235757676,
+    "twin_to_mac_derate_std": 0.003743102860359564,
+    "twin_to_mac_derate_cv_pct": 0.7957785990885455,
+    "twin_to_mac_inflation_median_pct": 52.8637183710865,
+    "twin_to_mac_inflation_range_pct": [
+      52.423740846476804,
+      53.58641829525207
+    ],
+    "twin_to_app_derate_cv_pct": 27.052733187053256,
     "implied_bandwidth_mhz_lowest_mcs": 10.684489950701556,
     "implied_bandwidth_mhz_highest_mcs": 4.981367130538103,
     "mac_goodput_mbps_at_max_mcs": 88.91,
@@ -29,13 +38,17 @@
   },
   "n_layouts": 8,
   "n_ue": 240,
-  "n_moved": 13,
-  "n_moved_evaluated": 13,
+  "n_moved": 19,
+  "n_moved_evaluated": 19,
   "n_moved_excluded_outage": 0,
   "note": "gains include the twin's airtime share 1/K in BOTH curves; the gap is the residual link-abstraction error, sign preserved (positive = twin over-predicts the steering gain)",
-  "moved_twin_gain_mean_pct": 111.32869230769232,
-  "moved_real_gain_mean_pct": 130.032,
-  "moved_fidelity_gap_mean_pts": -18.70353846153846,
-  "moved_fidelity_gap_std_pts": 21.305271106838735,
-  "moved_fidelity_gap_median_pts": -12.057
+  "moved_twin_gain_mean_pct": 126.59236842105264,
+  "moved_mac_gain_mean_pct": 125.41684210526316,
+  "moved_real_gain_mean_pct": 139.0194736842105,
+  "gap_vs_mac_mean_pts": 1.1754736842105264,
+  "gap_vs_mac_std_pts": 5.705011776873822,
+  "gap_vs_mac_max_abs_pts": 22.65,
+  "moved_fidelity_gap_mean_pts": -12.42721052631579,
+  "moved_fidelity_gap_std_pts": 20.71885359489153,
+  "moved_fidelity_gap_median_pts": -6.019
 }
