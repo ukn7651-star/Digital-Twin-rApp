@@ -1,0 +1,33 @@
+{
+  "n_runs_per_scale": 24,
+  "nominal_beta_scale": 1.0,
+  "note": "regret = PF utility lost by planning on a twin whose EESM beta is mis-scaled and being evaluated on the nominal twin; compare against the link-curve regrets in decision_regret.json",
+  "scales": {
+    "0.8": {
+      "frac_decisions_differ": 0.08333333333333333,
+      "mean_steer_jaccard": 0.9569444444444445,
+      "regret_utility_nats": {
+        "mean": 0.04619818955737968,
+        "std": 0.2087900641916596,
+        "n": 24,
+        "ci_lo": 0.0,
+        "ci_hi": 0.1350210468054097,
+        "level": 0.95
+      },
+      "mean_sinr_shift_db": -0.1473875
+    },
+    "1.2": {
+      "frac_decisions_differ": 0.041666666666666664,
+      "mean_steer_jaccard": 0.9791666666666666,
+      "regret_utility_nats": {
+        "mean": 0.005260742268851241,
+        "std": 0.02577226845395404,
+        "n": 24,
+        "ci_lo": 0.0,
+        "ci_hi": 0.015782226806553723,
+        "level": 0.95
+      },
+      "mean_sinr_shift_db": 0.10554166666666664
+    }
+  }
+}

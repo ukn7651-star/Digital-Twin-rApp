@@ -10,3 +10,7 @@ requests>=2.31
 # Sionna SYS provides the link-adapted (5G-NR MCS/BLER) throughput model used by
 # the KPI stage:
 #   pip install sionna
+
+# Paper statistics (bootstrap CIs, paired Wilcoxon / sign tests) and figures.
+scipy>=1.10
+matplotlib>=3.7

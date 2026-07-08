@@ -51,6 +51,11 @@ from dtrapp.rapp import association_changes, kpi_metrics, run_traffic_steering
 from dtrapp.runner.sweep import SCENES, base_config
 
 
+# A round 2 dB margin is what a link-budget-style abstraction would assume without
+# access to link-level data; the fitted value is 4.71 dB.
+MARGIN_DB = 2.0
+
+
 def _extent(scene_dir: Path):
     lines = (scene_dir / "meshes" / "ground.ply").read_text().splitlines()
     i = lines.index("end_header") + 1
@@ -92,11 +97,15 @@ def surrogate_curves(oai: LinkCurve) -> dict[str, LinkCurve]:
 
     return {
         "ideal": _curve("idealized (Shannon-optimal thresholds)", oai, pack(shannon_req)),
+        # A textbook link-budget abstraction: a round implementation margin, not a fitted
+        # one. It isolates whether the *value* of delta matters or merely its presence.
+        "margin2db": _curve("analytical, uniform 2 dB implementation margin", oai,
+                            pack(shannon_req + MARGIN_DB)),
         "offset": _curve(f"analytical, fitted SINR offset {delta_db:.2f} dB", oai,
                          pack(shannon_req + delta_db)),
         "attenuated": _curve(f"analytical, fitted attenuation a={a:.3f}", oai,
                              pack(atten_req)),
-    }, {"fitted_offset_db": delta_db, "fitted_alpha": a}
+    }, {"fitted_offset_db": delta_db, "fitted_alpha": a, "fixed_margin_db": MARGIN_DB}
 
 
 def _regret(net, cfr, cfg, oai: LinkCurve, surrogate: LinkCurve,
@@ -245,10 +254,11 @@ def _make_figure(fig_path: Path, rows: list[dict], summary: dict) -> None:
         import matplotlib.pyplot as plt
     except ImportError:
         return
-    order = ["ideal", "offset", "attenuated"]
+    order = ["ideal", "margin2db", "offset", "attenuated"]
     labels = {"ideal": "Shannon\n(uncalibrated)",
-              "offset": "Shannon $+\\delta$\n(1 fitted number)",
-              "attenuated": "$a\\cdot$Shannon\n(1 fitted number)"}
+              "margin2db": "Shannon $+2$ dB\n(assumed margin)",
+              "offset": "Shannon $+\\delta$\n(fitted margin)",
+              "attenuated": "$a\\cdot$Shannon\n(fitted atten.)"}
     order = [c for c in order if c in summary["curves"]]
     fig, ax = plt.subplots(1, 2, figsize=(9, 3.4))
 

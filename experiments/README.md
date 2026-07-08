@@ -141,11 +141,47 @@ and the UE reaches MCS 27 on the twin's stronger cell. **The measurement does no
 The driver records the `outcome` per layout rather than dropping it, so the negative
 result is reproducible. Outputs `multignb_fidelity_gap.{csv,json}`, `multignb_seq_*.json`.
 
+## 4. Robustness: does the twin's one unfitted knob matter?
+
+```bash
+CUDA_VISIBLE_DEVICES="" python3 experiments/eesm_sensitivity.py --seeds 8
+```
+
+The EESM `beta` is set per modulation order from the literature and scaled by
+`eesm_beta_scale`, the twin's only unfitted parameter. Perturbing it by ±20% shifts
+the mean effective SINR by ∓0.14 dB, changes the rApp's decisions on 8.3% of layouts,
+and costs 0.006 nats of regret — an order of magnitude below even the *calibrated*
+link curve's 0.039. The twin's conclusions are not being driven by this knob.
+
+Outputs `eesm_sensitivity.{csv,json}`.
+
+## 5. Paper statistics and figures (no experiment re-run)
+
+```bash
+python3 experiments/paper_stats.py     # -> results/paper_stats.json
+python3 experiments/paper_figures.py   # -> paper/fig_*.pdf (vector)
+bash paper/build.sh                    # both, then pdflatex; fails on regressions
+```
+
+`paper_stats.py` is the single source of truth for every statistic quoted in the
+paper: bootstrap 95% CIs (seeded), paired Wilcoxon signed-rank tests on the absolute
+rates, sign tests with ties handled per Dixon–Mood, and correlations reported *within*
+scene as well as pooled — a pooled correlation across three cities can be produced
+entirely by the between-city contrast and reverse inside every one of them, which is
+exactly what happens to our gain-vs-outage correlation.
+
+`build.sh` fails the build if the page count, overfull boxes, undefined references, or
+LaTeX errors regress.
+
 ## Notes
 
 - `served cell-edge` is the 5th percentile among UEs with non-zero throughput
   (robust to coverage holes); `outage` is the fraction of UEs with zero throughput.
-- rApp gains are reported as mean ± standard deviation over seeds and pooled across
-  all runs; a gain is undefined for a run whose baseline metric is zero.
+- rApp gains are reported with bootstrap 95% CIs and paired significance tests. On
+  4–6 of the 24 layouts the rApp moves no UE, so the gain is exactly zero; those ties
+  are excluded from the sign test rather than counted as failures.
+- The Sionna RT solver is seeded from `config.seed`: its diffuse/scattering sampling is
+  stochastic, and an unseeded solve drifts every downstream number by ~1% between
+  otherwise identical runs.
 - Every number in the paper is reproducible from `experiments/results/*` or the OAI
   logs in `oai_run/`.

@@ -96,7 +96,8 @@ class SionnaPropagationEngine:
             return np.zeros((len(ues), len(cells)), dtype=float)
 
         self._place_devices(network)
-        paths = self._solver(scene=self._scene, max_depth=self.config.max_depth)
+        paths = self._solver(scene=self._scene, max_depth=self.config.max_depth,
+                             seed=self.config.seed)
         return self._path_gain_db(paths, len(ues), len(cells))
 
     def compute_cfr(self, network: Network):
@@ -124,7 +125,10 @@ class SionnaPropagationEngine:
             subcarrier_spacing=cfg.subcarrier_spacing_hz,
         )
         self._place_devices(network)
-        paths = self._solver(scene=self._scene, max_depth=cfg.max_depth)
+        # Seed the solver: its diffuse/scattering sampling is stochastic, so an unseeded
+        # solve makes every downstream number drift by ~1% between otherwise identical
+        # runs -- enough to move a reported mean and impossible to notice after the fact.
+        paths = self._solver(scene=self._scene, max_depth=cfg.max_depth, seed=cfg.seed)
         return paths.cfr(
             frequencies=frequencies,
             sampling_frequency=1.0 / rg.ofdm_symbol_duration,

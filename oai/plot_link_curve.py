@@ -3,12 +3,13 @@
 (no-implementation-loss) staircase, shading the implementation loss.
 
 Reads ``oai/sinr_throughput_table.json`` (produced by sweeping OAI ``nr_dlsim``)
-and writes ``paper/fig_link_curve.png`` (and a copy under experiments/results).
+and writes ``paper/fig_link_curve.pdf`` (and a copy under experiments/results).
 Reproduces the figure behind the paper's implementation-loss claims.
 """
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -69,13 +70,14 @@ def main() -> int:
     ax.set_ylim(0, shannon.max() + 0.3)
     fig.tight_layout()
 
-    for out in (ROOT / "paper" / "fig_link_curve.png",
-                ROOT / "experiments" / "results" / "fig_link_curve.png"):
-        fig.savefig(out, dpi=130)
+    sys.path.insert(0, str(ROOT))
+    from experiments.fig_export import save_figure
+
+    save_figure(fig, "fig_link_curve", ROOT / "paper", ROOT / "experiments" / "results")
     plt.close(fig)
     print(f"@10dB: OAI={se10:.3f} Shannon={sh10:.3f} loss={100*(sh10-se10)/sh10:.1f}%")
     print(f"QPSK->16QAM step: {s10-s9:.1f} dB")
-    print("wrote paper/fig_link_curve.png")
+    print("wrote paper/fig_link_curve.pdf")
     return 0
 
 
