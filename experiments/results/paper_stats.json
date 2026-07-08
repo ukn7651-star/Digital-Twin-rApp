@@ -444,6 +444,31 @@
       }
     }
   },
+  "l2s_fit": {
+    "fit": {
+      "fitted_offset_db": 4.711274063299093,
+      "fitted_alpha": 0.6058601951281146,
+      "fixed_margin_db": 2.0
+    },
+    "threshold_error_db": {
+      "ideal": {
+        "rms": 4.751633998745797,
+        "max_abs": 5.808165944043415
+      },
+      "margin2db": {
+        "rms": 2.780814521833594,
+        "max_abs": 3.808165944043415
+      },
+      "offset": {
+        "rms": 0.6179986719421239,
+        "max_abs": 1.1362051669127187
+      },
+      "attenuated": {
+        "rms": 2.6324056714169455,
+        "max_abs": 6.191738240283392
+      }
+    }
+  },
   "real_fidelity_gap": {
     "abs_link_fidelity": {
       "n_points": 12,

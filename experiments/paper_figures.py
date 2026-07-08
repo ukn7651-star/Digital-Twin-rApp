@@ -90,6 +90,88 @@ def _plot_decision_regret(plt) -> None:
     plt.close(fig)
 
 
+def _plot_l2s_and_regret(plt) -> None:
+    """The paper in one float: what the four twins differ by, and what that costs.
+
+    (a) The surrogate L2S curves against the OAI-measured one. The fitted-offset curve
+        lies on top of it -- OAI's staircase *is* a Shannon-optimal staircase displaced
+        by delta -- which is the mechanism behind "one scalar is enough". The fitted
+        attenuation tracks it on average but diverges at both ends.
+    (b,c) Reporting error and regret, as mean with a seeded bootstrap 95% CI. These are
+        the statistics the text quotes. A boxplot would be wrong here: the regret
+        distribution is heavy-tailed with many exact zeros, so its outliers flatten the
+        boxes and hide the 23x separation that is the result.
+    """
+    import numpy as np
+    from dtrapp.kpi.link_curve import load_link_curve
+    from experiments.decision_regret import surrogate_curves
+
+    oai = load_link_curve()
+    sur, fit = surrogate_curves(oai)
+    stats = _json("paper_stats.json")["decision_regret"]["curves"]
+
+    se = np.array([q["se_bps_per_hz"] for q in oai.points])
+    thr = {"OAI": np.array([q["sinr_db"] for q in oai.points])}
+    for k in ("ideal", "margin2db", "offset", "attenuated"):
+        thr[k] = np.array([q["sinr_db"] for q in sur[k].points])
+
+    fig, ax = plt.subplots(1, 3, figsize=(7.16, 1.66),
+                           gridspec_kw={"width_ratios": [1.25, 1.0, 1.0]})
+
+    # (a) the staircases ---------------------------------------------------
+    g = np.linspace(-6, 24, 400)
+    ax[0].plot(g, np.log2(1 + 10 ** (g / 10)), color="0.6", ls="--", lw=0.9,
+               label="Shannon bound")
+    for k, c, ls, lw, lab in (
+            ("ideal", PALETTE[1], ":", 1.0, "Shannon-optimal"),
+            ("attenuated", PALETTE[3], (0, (3, 1, 1, 1)), 1.0, "$a\\cdot$Shannon (fitted)"),
+            ("margin2db", PALETTE[5], "-.", 1.0, "$+2$ dB (assumed)"),
+            ("offset", PALETTE[2], "-", 1.8, "$+\\delta$ (fitted)"),
+            ("OAI", "k", "-", 1.2, "OAI measured")):
+        ax[0].step(thr[k], se, where="post", color=c, ls=ls, lw=lw, label=lab)
+    rms = float(np.sqrt(((thr["OAI"] - thr["offset"]) ** 2).mean()))
+    ax[0].annotate(f"$+\\delta$ overlays OAI:\nRMS {rms:.2f} dB over MCS 0\u201328",
+                   xy=(0.96, 0.05), xycoords="axes fraction", ha="right", fontsize=5.6,
+                   color=PALETTE[2])
+    ax[0].set_xlim(-6, 23)
+    ax[0].set_ylim(0, 6.6)
+    ax[0].set_xlabel("effective SINR [dB]")
+    ax[0].set_ylabel("SE [bits/s/Hz]")
+    ax[0].set_title("The four twins differ only here", fontsize=7.5)
+    ax[0].grid(True, alpha=0.3)
+    ax[0].legend(fontsize=5.0, loc="upper left", handlelength=1.5, labelspacing=0.15,
+                 borderpad=0.15)
+
+    # (b),(c) mean +/- bootstrap 95% CI ------------------------------------
+    order = ["ideal", "margin2db", "offset", "attenuated"]
+    lab = {"ideal": "Shan.", "margin2db": "$+2$dB", "offset": "$+\\delta$",
+           "attenuated": "$a\\cdot$Shan."}
+    cols = [PALETTE[1], PALETTE[5], PALETTE[2], PALETTE[3]]
+    x = np.arange(len(order))
+    for a, key, ylab, title in (
+            (ax[1], "reporting_error_pct", "reporting error [%]", "What the twin says"),
+            (ax[2], "regret_utility_nats", "PF utility regret [nats]", "What acting on it costs")):
+        m = np.array([stats[c][key]["mean"] for c in order])
+        lo = np.array([stats[c][key]["ci_lo"] for c in order])
+        hi = np.array([stats[c][key]["ci_hi"] for c in order])
+        a.bar(x, m, 0.62, color=cols, alpha=0.85, edgecolor="0.25", linewidth=0.5)
+        a.errorbar(x, m, yerr=[m - lo, hi - m], fmt="none", ecolor="0.2",
+                   elinewidth=0.8, capsize=2.2)
+        a.axhline(0, color="k", lw=0.9)
+        a.set_xticks(x)
+        a.set_xticklabels([lab[c] for c in order], fontsize=6.0)
+        a.set_ylabel(ylab)
+        a.set_title(title, fontsize=7.5)
+        a.grid(True, axis="y", alpha=0.3)
+    ax[2].annotate("$23\\times$", xy=(2, stats["offset"]["regret_utility_nats"]["ci_hi"]),
+                   xytext=(2.05, 1.35), fontsize=6.2, color=PALETTE[2],
+                   arrowprops={"arrowstyle": "-|>", "lw": 0.7, "color": PALETTE[2],
+                               "shrinkA": 0, "shrinkB": 1})
+    fig.tight_layout(pad=0.25)
+    save_figure(fig, "fig_l2s_regret", PAPER, RESULTS)
+    plt.close(fig)
+
+
 def _plot_real_gap(plt) -> None:
     """The twin-to-MAC ratio is constant; the MAC-to-application spread is the emulator."""
     from dtrapp.kpi.link_curve import load_link_curve
@@ -185,7 +267,8 @@ def main() -> int:
     import matplotlib.pyplot as plt
     _style(plt)
 
-    for name, fn in (("decision_regret", _plot_decision_regret),
+    for name, fn in (("l2s_regret", _plot_l2s_and_regret),
+                     ("decision_regret", _plot_decision_regret),
                      ("real_fidelity_gap", _plot_real_gap),
                      ("null_control", _plot_null_control)):
         try:

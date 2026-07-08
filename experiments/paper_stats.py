@@ -143,6 +143,28 @@ def analyze_decision_regret(rows: list[dict], summary: dict) -> dict:
     return out
 
 
+def analyze_l2s_fit() -> dict:
+    """How closely does each surrogate reproduce the OAI curve's MCS thresholds?
+
+    This is the mechanism behind "one scalar is enough": the OAI staircase is a
+    Shannon-optimal staircase displaced by delta. The RMS threshold error says so; the
+    max says where a surrogate fails (the attenuation model is good on average and bad
+    at the extremes, which is exactly why it reports well and acts badly).
+    """
+    from dtrapp.kpi.link_curve import load_link_curve
+    from experiments.decision_regret import surrogate_curves
+
+    oai = load_link_curve()
+    sur, fit = surrogate_curves(oai)
+    ref = np.array([q["sinr_db"] for q in oai.points])
+    out = {"fit": fit, "threshold_error_db": {}}
+    for k, c in sur.items():
+        e = np.array([q["sinr_db"] for q in c.points]) - ref
+        out["threshold_error_db"][k] = {"rms": float(np.sqrt((e ** 2).mean())),
+                                        "max_abs": float(np.abs(e).max())}
+    return out
+
+
 def analyze_real_gap() -> dict:
     data = _json("real_fidelity_gap.json")
     if data is None:
@@ -188,6 +210,7 @@ def main() -> int:
         stats["decision_regret"] = analyze_decision_regret(_rows("decision_regret.csv"), dr)
     if (es := _json("eesm_sensitivity.json")) is not None:
         stats["eesm_sensitivity"] = es
+    stats["l2s_fit"] = analyze_l2s_fit()
     stats["real_fidelity_gap"] = analyze_real_gap()
     stats["null_control"] = analyze_null_control()
 
@@ -223,6 +246,10 @@ def main() -> int:
             e = v["reporting_error_pct"]
             print(f"    {k:<11} report {e['mean']:+6.1f}% [{e['ci_lo']:+.1f},{e['ci_hi']:+.1f}]   "
                   f"regret {r['mean']:.3f} [{r['ci_lo']:.3f},{r['ci_hi']:.3f}]")
+    te = stats["l2s_fit"]["threshold_error_db"]
+    print("  MCS-threshold error vs the OAI curve [dB]:")
+    for k, v in te.items():
+        print(f"    {k:<11} rms {v['rms']:.2f}  max {v['max_abs']:.2f}")
     rg = stats["real_fidelity_gap"]
     if "gap_vs_mac_pts" in rg:
         m, a = rg["gap_vs_mac_pts"], rg["gap_vs_app_pts"]
