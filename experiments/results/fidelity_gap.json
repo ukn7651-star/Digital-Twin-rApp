@@ -1,10 +1,12 @@
 {
   "n_runs": 24,
-  "median_tput_inflation_pct": 35.43914230310245,
+  "median_tput_inflation_mean_over_runs_pct": 35.43914230310245,
+  "median_tput_inflation_median_over_runs_pct": 33.73059759174481,
   "mean_tput_inflation_pct": 30.03651501448984,
   "gain_oai_mean_pct": 10.352778187304635,
   "gain_ideal_mean_pct": 10.94191278098842,
   "gain_abs_error_mean_pts": 8.182647692620629,
+  "gain_abs_error_median_pts": 7.465870196481197,
   "runs_decisions_differ": 10,
   "frac_decisions_differ": 0.4166666666666667,
   "mean_steer_jaccard": 0.748611111111111,

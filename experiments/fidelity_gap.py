@@ -63,7 +63,22 @@ def steer_set(res) -> set:
     return {(c["ue_id"], c["to_cell"]) for c in association_changes(res.baseline, res.steered)}
 
 
+def _summary_from_csv() -> int:
+    """Recompute the summary from the committed per-run CSV (no ray tracing)."""
+    out = ROOT / "experiments" / "results"
+    with open(out / "fidelity_gap.csv") as fh:
+        rows = [{k: v for k, v in r.items()} for r in csv.DictReader(fh)]
+    for r in rows:
+        for k in r:
+            if k != "scene":
+                r[k] = float(r[k])
+    return _write_summary(rows, out)
+
+
 def main() -> int:
+    if "--from-csv" in sys.argv:
+        return _summary_from_csv()
+
     oai = load_link_curve()
     ideal = idealized_curve(oai)
     assert oai.is_oai, "expected the OAI-measured curve to be present"
@@ -114,24 +129,31 @@ def main() -> int:
     out = ROOT / "experiments" / "results"
     with open(out / "fidelity_gap.csv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys())); w.writeheader(); w.writerows(rows)
+    return _write_summary(rows, out)
 
+
+def _write_summary(rows: list[dict], out: Path) -> int:
     def col(k):
         return np.array([r[k] for r in rows], float)
 
     gain_err = col("gain_ideal_pct") - col("gain_oai_pct")
     summary = {
         "n_runs": len(rows),
-        "median_tput_inflation_pct": float(np.nanmean(col("tput_inflation_pct"))),
+        # ``tput_inflation_pct`` is the inflation of each run's *median* UE throughput;
+        # report its mean AND its median across runs, so neither is mistaken for the other.
+        "median_tput_inflation_mean_over_runs_pct": float(np.nanmean(col("tput_inflation_pct"))),
+        "median_tput_inflation_median_over_runs_pct": float(np.nanmedian(col("tput_inflation_pct"))),
         "mean_tput_inflation_pct": float(np.nanmean(col("mean_inflation_pct"))),
         "gain_oai_mean_pct": float(np.nanmean(col("gain_oai_pct"))),
         "gain_ideal_mean_pct": float(np.nanmean(col("gain_ideal_pct"))),
         "gain_abs_error_mean_pts": float(np.nanmean(np.abs(gain_err))),
+        "gain_abs_error_median_pts": float(np.nanmedian(np.abs(gain_err))),
         "runs_decisions_differ": int(col("decisions_differ").sum()),
         "frac_decisions_differ": float(col("decisions_differ").mean()),
         "mean_steer_jaccard": float(col("steer_jaccard").mean()),
         "mean_cio_diff_cells": float(col("cio_diff_cells").mean()),
     }
-    (out / "fidelity_gap.json").write_text(json.dumps(summary, indent=2))
+    (out / "fidelity_gap.json").write_text(json.dumps(summary, indent=2, allow_nan=False))
     print("\n=== FIDELITY-GAP SUMMARY (idealized vs OAI-grounded twin) ===")
     for k, v in summary.items():
         print(f"  {k}: {v}")

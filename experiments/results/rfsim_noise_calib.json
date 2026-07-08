@@ -1,0 +1,39 @@
+{
+  "muted_cell_gain_db": -40.0,
+  "n_points": 6,
+  "note": "operating MCS the DL scheduler converges to at each rfsim noise floor, with the second cell muted; eff_sinr_db is that MCS read back through oai/sinr_throughput_table.json",
+  "points": [
+    {
+      "noise_power_db": -22.0,
+      "dl_mcs": 8,
+      "eff_sinr_db": 4.8
+    },
+    {
+      "noise_power_db": -18.0,
+      "dl_mcs": 19,
+      "eff_sinr_db": 13.8
+    },
+    {
+      "noise_power_db": -14.0,
+      "dl_mcs": 14,
+      "eff_sinr_db": 10.0
+    },
+    {
+      "noise_power_db": -10.0,
+      "dl_mcs": 18,
+      "eff_sinr_db": 13.2
+    },
+    {
+      "noise_power_db": -6.0,
+      "dl_mcs": 14,
+      "eff_sinr_db": 10.0
+    },
+    {
+      "noise_power_db": -2.0,
+      "dl_mcs": 0,
+      "eff_sinr_db": -2.6
+    }
+  ],
+  "monotone_in_noise": false,
+  "conclusion": "NOT invertible: the operating MCS is not monotone in the rfsim noise floor, so the reference cell cannot be placed at a target operating point. Absolute SINR matching is impossible on this emulator."
+}

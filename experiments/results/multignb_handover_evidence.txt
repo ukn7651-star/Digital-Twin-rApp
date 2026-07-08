@@ -1,3 +1,9 @@
+# NOTE (superseded in part): the handovers recorded here did happen, and the closed
+# loop they demonstrate stands. The *goodput* numbers taken alongside them do not:
+# they were measured with a 6 s TCP flow 3 s after each handover, inside slow start.
+# experiments/multignb_null_control.py shows that probe reports a -21.0 +/- 1.4%
+# cell effect on two physically IDENTICAL cells. See paper Sec. multignb.
+
 # Multi-gNB handover evidence (CU + DU-pci0 + DU-pci1, F1 SA)
 # Captured from live OAI stack after Phase 2 verification.
 

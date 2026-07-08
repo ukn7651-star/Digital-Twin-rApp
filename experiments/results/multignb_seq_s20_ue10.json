@@ -1,0 +1,34 @@
+[
+  {
+    "pci": 0,
+    "goodput_mbps": 1.730115624675944,
+    "dl_mcs": 13,
+    "mac_goodput_mbps": 18.15,
+    "pos": 1,
+    "ho_ok": 0
+  },
+  {
+    "pci": 1,
+    "goodput_mbps": 1.4155046307362853,
+    "dl_mcs": 13,
+    "mac_goodput_mbps": 18.53,
+    "pos": 2,
+    "ho_ok": 1
+  },
+  {
+    "pci": 0,
+    "goodput_mbps": 1.0485683978791154,
+    "dl_mcs": 6,
+    "mac_goodput_mbps": 5.82,
+    "pos": 3,
+    "ho_ok": 1
+  },
+  {
+    "pci": 1,
+    "goodput_mbps": 1.048527400754975,
+    "dl_mcs": 10,
+    "mac_goodput_mbps": 11.82,
+    "pos": 4,
+    "ho_ok": 1
+  }
+]

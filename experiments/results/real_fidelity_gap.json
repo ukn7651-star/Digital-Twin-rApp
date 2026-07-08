@@ -1,24 +1,41 @@
 {
   "abs_link_fidelity": {
-    "n_points": 10,
+    "n_points": 12,
     "mcs_range": [
-      2,
+      0,
       28
     ],
     "sinr_range_db": [
-      -0.6,
+      -2.6,
       21.4
     ],
-    "mean_twin_link_mbps": 48.06234,
-    "mean_real_goodput_mbps": 20.0654,
-    "mean_inflation_pct": 49.5090695571083,
-    "median_inflation_pct": 53.07088202363886
+    "bandwidth_mhz": 38.16,
+    "dl_duty": 0.7429,
+    "mean_twin_link_mbps": 83.1436758,
+    "mean_real_goodput_mbps": 13.60458333333333,
+    "mean_inflation_pct": 79.85346888697426,
+    "median_inflation_pct": 80.0169237838471,
+    "inflation_pct_range": [
+      72.00081249816155,
+      86.94610290739492
+    ],
+    "median_inflation_after_tdd_pct": 73.09970509364032,
+    "implied_bandwidth_mhz_lowest_mcs": 10.684489950701556,
+    "implied_bandwidth_mhz_highest_mcs": 4.981367130538103,
+    "mac_goodput_mbps_at_max_mcs": 88.91,
+    "twin_link_mbps_at_max_mcs": 190.77061680000003,
+    "twin_x_tdd_mbps_at_max_mcs": 141.7153153371429,
+    "real_goodput_mbps_at_max_mcs": 24.903
   },
   "n_layouts": 8,
   "n_ue": 240,
   "n_moved": 13,
-  "moved_twin_gain_mean_pct": -28.506230769230772,
-  "moved_real_gain_mean_pct": -23.652538461538462,
-  "moved_fidelity_gap_mean_pts": -4.853692307692309,
-  "moved_fidelity_gap_std_pts": 4.349259749298023
+  "n_moved_evaluated": 13,
+  "n_moved_excluded_outage": 0,
+  "note": "gains include the twin's airtime share 1/K in BOTH curves; the gap is the residual link-abstraction error, sign preserved (positive = twin over-predicts the steering gain)",
+  "moved_twin_gain_mean_pct": 111.32869230769232,
+  "moved_real_gain_mean_pct": 130.032,
+  "moved_fidelity_gap_mean_pts": -18.70353846153846,
+  "moved_fidelity_gap_std_pts": 21.305271106838735,
+  "moved_fidelity_gap_median_pts": -12.057
 }

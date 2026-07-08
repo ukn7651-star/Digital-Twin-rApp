@@ -1,0 +1,18 @@
+[
+  {
+    "pci": 0,
+    "goodput_mbps": null,
+    "dl_mcs": null,
+    "mac_goodput_mbps": null,
+    "pos": 1,
+    "ho_ok": 0
+  },
+  {
+    "pos": 2,
+    "pci": null,
+    "goodput_mbps": null,
+    "dl_mcs": null,
+    "mac_goodput_mbps": null,
+    "ho_ok": 0
+  }
+]

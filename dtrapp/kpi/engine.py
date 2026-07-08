@@ -118,6 +118,68 @@ def _serving_gain_per_re(h_link: np.ndarray) -> np.ndarray:
     return sigma[:, 0] ** 2
 
 
+def _gamma_lin_per_re(h, u: int, s: int, p_re, n_bs_ant: int, noise_re: float,
+                      load: float, num_cells: int) -> np.ndarray:
+    """Per-RE SINR of UE ``u`` when served by cell ``s`` (every other cell interferes)."""
+    signal_re = p_re[s] * _serving_gain_per_re(h[u, :, s])        # [nRE]
+    fro2 = (np.abs(h[u]) ** 2).sum(axis=(0, 2))                   # [nC, nSym, nSC]
+    fro2_re = fro2.reshape(num_cells, -1)                         # [nC, nRE]
+    mask = np.ones(num_cells, dtype=bool)
+    mask[s] = False
+    interf_re = load * ((p_re[mask, None] / n_bs_ant) * fro2_re[mask]).sum(axis=0)
+    return signal_re / np.maximum(interf_re + noise_re, 1e-30)
+
+
+def _tx_psd(network: Network, config: SimulationConfig):
+    """Per-cell transmit power per subcarrier under a flat PSD."""
+    scs = float(config.subcarrier_spacing_hz)
+    tx_watt = np.array([10.0 ** ((c.tx_power_dbm - 30.0) / 10.0) for c in network.cells])
+    bw = np.array([float(c.bandwidth_hz) for c in network.cells])
+    return tx_watt, tx_watt * scs / bw, scs
+
+
+def _noise_per_re(ue, config: SimulationConfig, scs: float) -> float:
+    nf_lin = 10.0 ** (float(ue.noise_figure_db) / 10.0)
+    return _BOLTZMANN * float(config.temperature_k) * scs * nf_lin
+
+
+def per_ue_cell_sinr(
+    network: Network,
+    cfr,
+    config: SimulationConfig,
+    link_curve: LinkCurve | None = None,
+) -> list[list[dict]]:
+    """Effective SINR / MCS / SE for every (UE, candidate serving cell) pair.
+
+    Exactly the abstraction ``compute_kpis`` uses -- MRT serving gain, load-scaled
+    inter-cell interference, EESM over the per-RE SINR, OAI staircase -- but
+    evaluated for each cell as if it served the UE, and *without* the airtime share
+    ``1/K``. This isolates the twin's prediction of what a UE's own link delivers on
+    each cell, which is the only part a single-UE real stack can be compared against.
+
+    Returns ``out[ue][cell] = {"sinr_db", "mcs", "se_bps_per_hz"}``.
+    """
+    curve = link_curve if link_curve is not None else load_link_curve()
+    h = _to_numpy(cfr)
+    _tx, p_re, scs = _tx_psd(network, config)
+    num_cells, n_bs_ant = len(network.cells), h.shape[3]
+    load = float(np.clip(config.neighbor_load, 0.0, 1.0))
+    beta_scale = float(config.eesm_beta_scale)
+    table_index = int(config.mcs_table_index)
+
+    out: list[list[dict]] = []
+    for u, ue in enumerate(network.ues):
+        noise_re = _noise_per_re(ue, config, scs)
+        per_cell = []
+        for s in range(num_cells):
+            g = _gamma_lin_per_re(h, u, s, p_re, n_bs_ant, noise_re, load, num_cells)
+            mcs, se, eff_db = _select_mcs_eesm(curve, g, table_index, beta_scale)
+            per_cell.append({"sinr_db": float(eff_db), "mcs": int(mcs),
+                             "se_bps_per_hz": float(se)})
+        out.append(per_cell)
+    return out
+
+
 def compute_kpis(
     network: Network,
     cfr,
@@ -150,10 +212,7 @@ def compute_kpis(
     num_cells = len(cells)
     n_bs_ant = h.shape[3]
 
-    tx_watt = np.array([10.0 ** ((c.tx_power_dbm - 30.0) / 10.0) for c in cells])
-    bw = np.array([float(c.bandwidth_hz) for c in cells])
-    # Flat PSD: per-subcarrier tx power = P_total * (scs / cell bandwidth).
-    p_re = tx_watt * scs / bw                                    # [nC]
+    tx_watt, p_re, _scs = _tx_psd(network, config)
 
     # Association on wideband mean received power (RSRP-like), biased by the
     # per-cell CIO (traffic-steering control). Power/SINR use the true rx_watt.
@@ -173,22 +232,10 @@ def compute_kpis(
     for u, ue in enumerate(ues):
         s = int(serving[u])
         bandwidth = float(cells[s].bandwidth_hz)
-        nf_lin = 10.0 ** (float(ue.noise_figure_db) / 10.0)
-        noise_re = _BOLTZMANN * float(config.temperature_k) * scs * nf_lin
+        noise_re = _noise_per_re(ue, config, scs)
 
-        # Serving signal per RE: coherent MRT/MRC beamforming on the actual channel.
-        signal_re = p_re[s] * _serving_gain_per_re(h[u, :, s])   # [nRE]
-
-        # Inter-cell interference per RE: expected random-beam power, load-scaled.
-        fro2 = (np.abs(h[u]) ** 2).sum(axis=(0, 2))              # [nC, nSym, nSC]
-        fro2_re = fro2.reshape(num_cells, -1)                    # [nC, nRE]
-        mask = np.ones(num_cells, dtype=bool)
-        mask[s] = False
-        interf_re = load * (
-            (p_re[mask, None] / n_bs_ant) * fro2_re[mask]
-        ).sum(axis=0)                                            # [nRE]
-
-        gamma_lin = signal_re / np.maximum(interf_re + noise_re, 1e-30)
+        # Serving signal (coherent MRT/MRC) over load-scaled inter-cell interference.
+        gamma_lin = _gamma_lin_per_re(h, u, s, p_re, n_bs_ant, noise_re, load, num_cells)
         mcs, se, eff_sinr_db = _select_mcs_eesm(curve, gamma_lin, table_index, beta_scale)
 
         se_goodput = se * (1.0 - bler_target)

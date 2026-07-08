@@ -1,0 +1,36 @@
+# Per-cell ray-traced channel injection on a live 2-cell OAI stack -- raw evidence
+# Reproduce: python3 experiments/multignb_fidelity_gap.py --seed-list 1,20,28 --n 4 --dur 20
+# (the driver aborts a layout unless both models are confirmed in the UE log)
+
+## Topology
+The UE is the rfsimulator SERVER; each DU is a client. radio/rfsimulator/simulator.cpp
+(allocCirBuf) names the n-th accepted connection's channel model rfsimu_channel_ue{n-1},
+and radio/rfsimulator/apply_channelmod.c (rxAddInput) ACCUMULATES each connection's
+convolved samples into the UE's receive buffer:
+
+    out_ptr->r += rx_tmp.r * pathLossLinear + noise_per_sample * gaussZiggurat(0.0, 1.0);
+
+So the per-cell downlink channel lives on the UE, one model per DU, and the non-serving
+DU's waveform is summed in as genuine co-channel interference.
+
+## Injection confirmed (layout seed 1, UE ue10, ray-traced split 5.8731 dB)
+DU start order fixes the mapping: DU-pci0 <- twin cell c1 (0 dB), DU-pci1 <- twin cell c0.
+
+oai_run/ue_splitcheck3.log:
+  [OCM] [RT] injected 1 taps into rfsimu_channel_ue0 (path_loss_dB=-0.00, channel_length=1, pairs=1)
+  [OCM] [RT] injected 1 taps into rfsimu_channel_ue1 (path_loss_dB=-5.87, channel_length=1, pairs=1)
+
+The injected gains equal the twin's per-cell ray-traced link gains
+(experiments/results/multignb_fidelity_gap.csv: rt_gain_pci0_db=-0.0,
+rt_gain_pci1_db=-5.8731, rt_rsrp_split_db=5.8731).
+
+## The UE reaches the operating point on the twin's stronger cell
+oai_run/du0_splitcheck3.log (PCI 0 = twin c0's stronger sector, 0 dB):
+  MCS (0) 27 CCE fail 2, goodput 60.12 Mbps
+
+## What does not close (see experiments/results/multignb_fidelity_gap.json)
+With channel models active on BOTH rfsim connections, over three layouts:
+  seed  1: handover_failed   ( 0 UE re-syncs after attach)
+  seed 20: link_unstable     (70 UE re-syncs after attach)  <- goodput measures recovery
+  seed 28: handover_failed   (44 UE re-syncs after attach)
+Injection was confirmed on 3/3 layouts; no layout yielded a usable delivered-goodput number.

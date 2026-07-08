@@ -36,9 +36,11 @@ _FALLBACK = {
         {"sinr_db": 8.0, "mcs": 16, "se_bps_per_hz": 2.7305},
         {"sinr_db": 11.0, "mcs": 19, "se_bps_per_hz": 3.6094},
         {"sinr_db": 14.0, "mcs": 22, "se_bps_per_hz": 4.5234},
-        {"sinr_db": 17.0, "mcs": 25, "se_bps_per_hz": 5.5547},
-        {"sinr_db": 20.0, "mcs": 27, "se_bps_per_hz": 6.2266},
-        {"sinr_db": 23.0, "mcs": 28, "se_bps_per_hz": 6.9141},
+        # MCS 25/27/28 of table 1 are 64QAM: SE = 6*R with R = 873/910/948 over 1024.
+        # (These were 256QAM SEs, which imply a code rate > 1 at Qm = 6.)
+        {"sinr_db": 17.0, "mcs": 25, "se_bps_per_hz": 5.1152},
+        {"sinr_db": 20.0, "mcs": 27, "se_bps_per_hz": 5.3320},
+        {"sinr_db": 23.0, "mcs": 28, "se_bps_per_hz": 5.5547},
     ],
 }
 

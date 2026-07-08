@@ -1,0 +1,23 @@
+# Why the UDP probe is invalid on this stack -- raw evidence
+# The gNB is pinned to dl_max_mcs = 4. Its own MAC reports the achievable rate.
+
+## gNB MAC at dl_max_mcs = 4 (oai_run/gnb_cal_02.log)
+  MCS (0) 4 CCE fail 5, goodput 9.77 Mbps        <- ~9.8 Mbps is what the radio can carry
+
+## iperf3 UDP in reverse mode (-u -b <rate> -t 8 -R -J), same link
+  offered  8M: end.sum bits/s= 8.00M  sender=False lost=0%      pkts=5722  lost_pkts=0
+  offered 20M: end.sum bits/s=20.00M  sender=False lost=0.16%   pkts=14368 lost_pkts=23
+
+20 Mbps cannot traverse a 9.8 Mbps MAC. `end.sum.bits_per_second` is the SENDING rate,
+not the delivered rate, and it equals the offered rate exactly at every offer. Any
+"delivered goodput" read from that field -- and therefore any fidelity gap computed from
+it -- is fiction. Raising the offer until loss appears is not an option either: iperf3's
+control connection rides the same PDU session, so a 50 Mbps flood starves it and the run
+hangs (observed at dl_max_mcs = 4 and on the 2-cell stack at every attenuated cell).
+
+## Consequence
+All probes in experiments/ use TCP, which self-clocks and cannot exceed the channel.
+Its cost is slow start; we settle 20 s and measure a 20 s plateau. The original harness
+started a 6 s TCP flow 3 s after each handover -- inside slow start AND inside the
+scheduler's link-adaptation ramp. experiments/multignb_null_control.py measures what that
+costs: on two physically identical cells it reports a -21.0 +/- 1.4% cell effect.
