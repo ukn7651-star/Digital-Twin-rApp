@@ -18,3 +18,10 @@ paper/*.aux
 paper/*.bbl
 paper/*.blg
 paper/*.out
+paper/overleaf_upload.zip
+
+# Pre-filing invention disclosure. This repository is PUBLIC: committing these
+# would be a public disclosure and can bar patentability in jurisdictions with
+# absolute novelty (EP, CN, JP). Keep local until the patent is filed.
+patent_a1/
+patent_a1.zip
